@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Drashti Cashbook</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Work+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #FBF7EE; --paper-raised: #FFFFFF; --ink: #241F1B; --ink-soft: #6B6155;
+    --navy: #1D3557; --navy-soft: #34517A; --gold: #B8892B; --gold-soft: #E7D5A8;
+    --rule: #DED4BC; --rule-strong: #C8BA98; --credit: #2F6F4F; --credit-bg: #E7F1EB;
+    --debit: #9C3B2E; --debit-bg: #F3E7E3; --danger: #9C3B2E;
+    --radius-s: 4px; --radius-m: 8px;
+    --font-serif: 'Fraunces', Georgia, serif; --font-sans: 'Work Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--font-sans); min-height: 100vh; }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 20px 16px 64px; }
+  .topbar { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding-bottom: 16px; margin-bottom: 20px; border-bottom: 2px solid var(--navy); }
+  .brand { display: flex; flex-direction: column; gap: 2px; }
+  .brand-name { font-family: var(--font-serif); font-size: 1.5rem; font-weight: 600; color: var(--navy); }
+  .brand-sub { font-size: 0.8rem; color: var(--ink-soft); }
+  .who { display: flex; align-items: center; gap: 10px; font-size: 0.9rem; }
+  .who-name { font-weight: 600; }
+  .btn { font-family: var(--font-sans); font-size: 0.85rem; font-weight: 600; padding: 8px 14px; border-radius: var(--radius-s); border: 1px solid var(--rule-strong); background: var(--paper-raised); color: var(--ink); cursor: pointer; }
+  .btn:hover { border-color: var(--navy); }
+  .btn:focus-visible, input:focus-visible, select:focus-visible, button:focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; }
+  .btn-primary { background: var(--navy); border-color: var(--navy); color: #fff; }
+  .btn-primary:hover { background: var(--navy-soft); border-color: var(--navy-soft); }
+  .btn-small { padding: 5px 10px; font-size: 0.78rem; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .login-shell { max-width: 420px; margin: 8vh auto 0; }
+  .login-card { background: var(--paper-raised); border: 1px solid var(--rule); border-radius: var(--radius-m); padding: 32px 28px; }
+  .login-title { font-family: var(--font-serif); font-size: 1.6rem; margin: 0 0 4px; color: var(--navy); }
+  .login-hint { color: var(--ink-soft); font-size: 0.88rem; margin: 0 0 22px; }
+  label { display: block; font-size: 0.8rem; font-weight: 600; color: var(--ink-soft); margin-bottom: 6px; }
+  select, input[type="text"], input[type="number"], input[type="password"], input[type="date"] {
+    width: 100%; font-family: var(--font-sans); font-size: 0.95rem; padding: 10px 12px;
+    border-radius: var(--radius-s); border: 1px solid var(--rule-strong); background: var(--paper); color: var(--ink); margin-bottom: 16px;
+  }
+  .field-row { display: flex; gap: 12px; } .field-row > div { flex: 1; }
+  .error-msg { color: var(--danger); font-size: 0.85rem; margin: -8px 0 14px; min-height: 1em; }
+  .muted-note { color: var(--ink-soft); font-size: 0.8rem; margin-top: 4px; }
+  .link-btn { background: none; border: none; color: var(--navy); font-size: 0.82rem; cursor: pointer; padding: 0; text-decoration: underline; }
+  .balance-band { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; background: var(--paper-raised); border: 1px solid var(--rule); border-radius: var(--radius-m); padding: 20px 24px; margin-bottom: 22px; }
+  .balance-figure-label { font-size: 0.78rem; color: var(--ink-soft); margin-bottom: 4px; }
+  .balance-figure { font-family: var(--font-serif); font-size: 2.4rem; font-weight: 600; color: var(--navy); line-height: 1; }
+  .balance-sub { display: flex; gap: 22px; margin-top: 10px; flex-wrap: wrap; }
+  .balance-sub-item { font-size: 0.82rem; color: var(--ink-soft); } .balance-sub-item b { color: var(--ink); }
+  .pill-in { color: var(--credit); } .pill-out { color: var(--debit); }
+  .tabs { display: flex; gap: 4px; margin-bottom: 18px; border-bottom: 1px solid var(--rule); }
+  .tab-btn { font-family: var(--font-sans); font-size: 0.88rem; font-weight: 600; color: var(--ink-soft); background: none; border: none; padding: 10px 4px; margin-right: 20px; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+  .tab-btn.active { color: var(--navy); border-bottom-color: var(--navy); }
+  .form-card { background: var(--paper-raised); border: 1px solid var(--rule); border-radius: var(--radius-m); padding: 20px 22px; margin-bottom: 24px; }
+  .form-card h3 { font-family: var(--font-serif); font-size: 1.15rem; margin: 0 0 16px; font-weight: 600; }
+  .type-toggle { display: flex; gap: 8px; margin-bottom: 16px; }
+  .type-opt { flex: 1; text-align: center; padding: 10px; border-radius: var(--radius-s); border: 1px solid var(--rule-strong); cursor: pointer; font-size: 0.88rem; font-weight: 600; background: var(--paper); color: var(--ink-soft); }
+  .type-opt.active-in { background: var(--credit-bg); border-color: var(--credit); color: var(--credit); }
+  .type-opt.active-out { background: var(--debit-bg); border-color: var(--debit); color: var(--debit); }
+  .ledger-wrap { overflow-x: auto; border: 1px solid var(--rule); border-radius: var(--radius-m); background: var(--paper-raised); }
+  table.ledger { width: 100%; border-collapse: collapse; min-width: 640px; }
+  table.ledger th { text-align: left; font-size: 0.72rem; font-weight: 700; color: var(--ink-soft); padding: 10px 14px; border-bottom: 1px solid var(--rule-strong); white-space: nowrap; background: var(--paper); }
+  table.ledger td { padding: 10px 14px; font-size: 0.88rem; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  table.ledger tr:last-child td { border-bottom: none; }
+  table.ledger td.num { font-family: var(--font-serif); color: var(--ink-soft); }
+  table.ledger td.amt-in { color: var(--credit); font-weight: 600; } table.ledger td.amt-out { color: var(--debit); font-weight: 600; }
+  .dash { color: var(--rule-strong); }
+  .empty-row td { text-align: center; color: var(--ink-soft); padding: 28px; }
+  .overview-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; margin-bottom: 26px; }
+  .emp-card { background: var(--paper-raised); border: 1px solid var(--rule); border-radius: var(--radius-m); padding: 16px 18px; cursor: pointer; text-align: left; font-family: var(--font-sans); }
+  .emp-card:hover { border-color: var(--navy); }
+  .emp-card-name { font-weight: 600; font-size: 0.95rem; margin-bottom: 8px; }
+  .emp-card-balance { font-family: var(--font-serif); font-size: 1.4rem; font-weight: 600; color: var(--navy); }
+  .emp-card-meta { font-size: 0.76rem; color: var(--ink-soft); margin-top: 6px; }
+  .section-title { font-family: var(--font-serif); font-size: 1.2rem; font-weight: 600; margin: 0 0 14px; color: var(--ink); }
+  .row-between { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; }
+  .back-link { display: inline-flex; align-items: center; gap: 6px; color: var(--navy); background: none; border: none; font-size: 0.85rem; font-weight: 600; cursor: pointer; padding: 0; margin-bottom: 14px; }
+  .totals-strip { display: flex; gap: 24px; margin-bottom: 18px; flex-wrap: wrap; }
+  .totals-strip div { font-size: 0.85rem; color: var(--ink-soft); } .totals-strip b { color: var(--ink); font-family: var(--font-serif); font-size: 1.05rem; }
+  .modal-backdrop { position: fixed; inset: 0; background: rgba(20,16,10,0.45); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 50; }
+  .modal-card { background: var(--paper-raised); border-radius: var(--radius-m); padding: 26px 24px; max-width: 380px; width: 100%; border: 1px solid var(--rule); }
+  .modal-card h3 { font-family: var(--font-serif); margin: 0 0 6px; font-size: 1.2rem; }
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 6px; }
+  .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--paper); padding: 10px 18px; border-radius: var(--radius-s); font-size: 0.85rem; opacity: 0; pointer-events: none; transition: opacity .25s ease, transform .25s ease; z-index: 60; }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(-4px); }
+  .sync-note { font-size: 0.72rem; color: var(--ink-soft); margin-top: -10px; margin-bottom: 18px; }
+  @media (max-width: 560px) { .balance-figure { font-size: 1.9rem; } .field-row { flex-direction: column; } .balance-band { padding: 16px; } }
+</style>
+</head>
+<body>
+<div id="app" class="wrap"></div>
+<div id="toast" class="toast"></div>
+
+<script>
+/* =====================================================================
+   REQUIRED: paste your deployed Apps Script Web App URL below.
+   It looks like: https://script.google.com/macros/s/XXXXXXXX/exec
+   ===================================================================== */
+const APPS_SCRIPT_URL = 'PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE';
+
+const EMPLOYEES = [
+  { id: 'vishal',   name: 'Vishal Dudhela',   isMaster: true },
+  { id: 'kushal',   name: 'Kushal Solani',    isMaster: false },
+  { id: 'arjun',    name: 'Arjun Sanghavi',   isMaster: false },
+  { id: 'ravi',     name: 'Ravi Tanna',       isMaster: false },
+  { id: 'ketan',    name: 'Ketan Barot',      isMaster: false },
+  { id: 'hansie',   name: 'Hansie Christian', isMaster: false },
+  { id: 'pranshul', name: 'Pranshul Pandya',  isMaster: false },
+  { id: 'munira',   name: 'Munira Sariya',    isMaster: false },
+  { id: 'harsiddh', name: 'Harsiddh Parmar',  isMaster: false },
+  { id: 'riddhi',   name: 'Riddhi Makwana',   isMaster: false },
+];
+const PURPOSE_SUGGESTIONS = ['Client payment','Vendor payment','Office expense','Fuel / transport','Salary advance','Bank deposit','Bank withdrawal','Petty cash top-up'];
+const POLL_MS = 15000;
+
+let current = null, allTxns = [], view = 'login', masterFocusId = null, txnType = 'in';
+let loginStage = 'select', loginError = '', pendingEmployee = null, loginUserIdValue = '';
+let pollTimer = null, changePinOpen = false;
+
+const root = document.getElementById('app');
+const toastEl = document.getElementById('toast');
+function showToast(msg) { toastEl.textContent = msg; toastEl.classList.add('show'); setTimeout(() => toastEl.classList.remove('show'), 2200); }
+function fmtMoney(n) { const v = Number(n) || 0; return '\u20B9' + v.toLocaleString('en-IN', { maximumFractionDigits: 0 }); }
+function fmtDate(iso) { if (!iso) return ''; const d = new Date(iso + 'T00:00:00'); if (isNaN(d)) return iso; return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }); }
+function todayISO() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
+
+/* ---------------- API ---------------- */
+async function api(action, payload) {
+  if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.indexOf('PASTE_YOUR') === 0) {
+    throw new Error('CONFIG');
+  }
+  const res = await fetch(APPS_SCRIPT_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // avoids CORS preflight against Apps Script
+    body: JSON.stringify(Object.assign({ action }, payload || {}))
+  });
+  return res.json();
+}
+
+async function refreshTxns() {
+  try {
+    const r = await api('listTransactions');
+    if (r && r.ok) { allTxns = r.transactions || []; render(); }
+  } catch (e) { /* silent — keep last known data */ }
+}
+function startPolling() { stopPolling(); pollTimer = setInterval(refreshTxns, POLL_MS); }
+function stopPolling() { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
+
+function txnsFor(employeeId) { return allTxns.filter(t => t.employeeId === employeeId); }
+function balanceFor(employeeId) {
+  const list = txnsFor(employeeId);
+  let inTotal = 0, outTotal = 0;
+  list.forEach(t => { if (t.type === 'in') inTotal += Number(t.amount)||0; else outTotal += Number(t.amount)||0; });
+  return { balance: inTotal - outTotal, inTotal, outTotal, count: list.length };
+}
+
+/* ---------------- CSV export (real browser download, free) ---------------- */
+function toCSV(list) {
+  const rows = [['Txn No','Date','Amount','Collected From','Handover To','Purpose']];
+  list.forEach(t => rows.push([t.number, t.date, t.amount, t.collectedFrom || '', t.handoverTo || '', t.purpose || '']));
+  const esc = v => '"' + String(v).replace(/"/g,'""') + '"';
+  return rows.map(r => r.map(esc).join(',')).join('\n');
+}
+function exportCSV(employeeId, employeeName) {
+  const csv = toCSV(txnsFor(employeeId));
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'Drashti-Cashbook-' + employeeName.replace(/\s+/g,'-') + '-' + todayISO() + '.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/* ---------------- Render shell ---------------- */
+function render() {
+  root.innerHTML = '';
+  if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.indexOf('PASTE_YOUR') === 0) { renderNotConfigured(); return; }
+  if (view === 'login' || !current) { renderLogin(); return; }
+  if (view === 'master' && current.isMaster) { renderMaster(); return; }
+  if (view === 'ledger-detail' && current.isMaster) { renderLedgerDetail(); return; }
+  renderEmployee();
+}
+function el(tag, attrs, ...children) {
+  const node = document.createElement(tag); attrs = attrs || {};
+  Object.keys(attrs).forEach(k => {
+    if (k === 'style') node.style.cssText = attrs[k];
+    else if (k.startsWith('on') && typeof attrs[k] === 'function') node.addEventListener(k.slice(2), attrs[k]);
+    else if (k === 'class') node.className = attrs[k];
+    else node.setAttribute(k, attrs[k]);
+  });
+  children.flat().forEach(c => { if (c === null || c === undefined || c === false) return; node.appendChild(typeof c === 'string' || typeof c === 'number' ? document.createTextNode(c) : c); });
+  return node;
+}
+function renderNotConfigured() {
+  root.appendChild(el('div', { class: 'login-shell' }, el('div', { class: 'login-card' },
+    el('h2', { class: 'login-title' }, 'Almost there'),
+    el('p', { class: 'login-hint' }, 'This page needs your Google Apps Script Web App URL. Open this HTML file, find APPS_SCRIPT_URL near the top of the script, and paste your deployment URL in \u2014 then reload this page.')
+  )));
+}
+
+/* ---------------- Topbar ---------------- */
+function topbar() {
+  const brand = el('div', { class: 'brand' }, el('div', { class: 'brand-name' }, 'Drashti Cashbook'), el('div', { class: 'brand-sub' }, 'Drashti Tours & Travels \u2014 daily cash ledger'));
+  if (!current) return el('div', { class: 'topbar' }, brand);
+  const who = el('div', { class: 'who' },
+    el('span', { class: 'who-name' }, current.name + (current.isMaster ? ' \u00b7 Master' : '')),
+    el('button', { class: 'btn btn-small', onclick: openChangePin }, 'Change PIN'),
+    el('button', { class: 'btn btn-small', onclick: logout }, 'Log out')
+  );
+  return el('div', { class: 'topbar' }, brand, who);
+}
+function logout() { stopPolling(); current = null; allTxns = []; view = 'login'; loginStage = 'select'; loginError=''; pendingEmployee=null; loginUserIdValue=''; render(); }
+
+/* ---------------- Login ---------------- */
+function renderLogin() {
+  const wrap = el('div', { class: 'login-shell' });
+  wrap.appendChild(topbar());
+  const card = el('div', { class: 'login-card' });
+  card.appendChild(el('h2', { class: 'login-title' }, loginStage === 'setpin-confirm' ? 'Set your PIN' : 'Sign in'));
+  card.appendChild(el('p', { class: 'login-hint' }, loginStage === 'setpin-confirm' ? 'First time signing in \u2014 choose a 4-digit PIN you\u2019ll use going forward.' : 'Enter the User ID and PIN you were given to open your cashbook.'));
+
+  if (loginStage === 'select' || loginStage === 'pin') {
+    card.appendChild(el('label', {}, 'User ID'));
+    const idInput = el('input', { type: 'text', autocapitalize: 'none', autocomplete: 'off', placeholder: 'e.g. vishal', value: loginUserIdValue });
+    idInput.addEventListener('input', () => { loginUserIdValue = idInput.value; });
+    card.appendChild(idInput);
+    card.appendChild(el('label', {}, 'PIN'));
+    const pinInput = el('input', { type: 'password', inputmode: 'numeric', maxlength: '8', placeholder: '\u2022\u2022\u2022\u2022' });
+    card.appendChild(pinInput);
+    const err = el('div', { class: 'error-msg' }, loginError);
+    card.appendChild(err);
+
+    const doSignIn = async (btn) => {
+      const typedId = idInput.value.trim().toLowerCase();
+      const emp = EMPLOYEES.find(x => x.id.toLowerCase() === typedId);
+      const pin = pinInput.value.trim();
+      if (!typedId) { loginError = 'Enter your User ID.'; render(); return; }
+      if (!emp) { loginError = 'User ID not recognised \u2014 check with your admin.'; render(); return; }
+      if (!pin) { loginError = 'Enter your PIN.'; render(); return; }
+      if (btn) btn.disabled = true;
+      try {
+        const r = await api('login', { employeeId: emp.id, pin });
+        if (r.needsSetup) { pendingEmployee = emp; loginStage = 'setpin-confirm'; loginError = ''; render(); return; }
+        if (!r.ok) { loginError = r.error || 'Sign-in failed.'; render(); return; }
+        current = emp; view = emp.isMaster ? 'master' : 'employee'; loginError = ''; loginUserIdValue = '';
+        await refreshTxns(); startPolling(); render();
+      } catch (ex) { loginError = ex.message === 'CONFIG' ? 'App not configured yet.' : 'Couldn\u2019t reach the server \u2014 check your connection.'; render(); }
+    };
+    const signInBtn = el('button', { class: 'btn btn-primary', style: 'width:100%', onclick: (e) => doSignIn(e.target) }, 'Sign in');
+    pinInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') doSignIn(signInBtn); });
+    card.appendChild(signInBtn);
+
+    card.appendChild(el('div', { style: 'margin-top:14px;text-align:center' },
+      el('button', { class: 'link-btn', onclick: async () => {
+        const typedId = idInput.value.trim().toLowerCase();
+        const emp = EMPLOYEES.find(x => x.id.toLowerCase() === typedId);
+        if (!emp) { loginError = 'Enter a valid User ID first.'; render(); return; }
+        pendingEmployee = emp; loginStage = 'setpin-confirm'; loginError = ''; render();
+      } }, 'First time here? Set your PIN')
+    ));
+  } else if (loginStage === 'setpin-confirm') {
+    card.appendChild(el('label', {}, 'User ID'));
+    card.appendChild(el('div', { class: 'muted-note', style: 'margin-bottom:16px;font-size:0.9rem;color:var(--ink)' }, pendingEmployee.id + ' \u2014 ' + pendingEmployee.name));
+    card.appendChild(el('label', {}, 'New PIN'));
+    const p1 = el('input', { type: 'password', inputmode: 'numeric', maxlength: '8' });
+    card.appendChild(p1);
+    card.appendChild(el('label', {}, 'Confirm PIN'));
+    const p2 = el('input', { type: 'password', inputmode: 'numeric', maxlength: '8' });
+    card.appendChild(p2);
+    const err = el('div', { class: 'error-msg' }, loginError);
+    card.appendChild(err);
+    card.appendChild(el('button', { class: 'btn btn-primary', style: 'width:100%', onclick: async (e) => {
+      if (p1.value.length < 4) { loginError = 'Use at least 4 digits.'; render(); return; }
+      if (p1.value !== p2.value) { loginError = 'PINs don\u2019t match.'; render(); return; }
+      e.target.disabled = true;
+      const r = await api('setPin', { employeeId: pendingEmployee.id, pin: p1.value });
+      if (!r.ok) { loginError = r.error || 'Couldn\u2019t set PIN.'; render(); return; }
+      current = pendingEmployee; view = pendingEmployee.isMaster ? 'master' : 'employee'; loginStage='select'; loginError=''; pendingEmployee=null; loginUserIdValue='';
+      await refreshTxns(); startPolling(); render();
+      showToast('PIN set \u2014 welcome!');
+    } }, 'Save PIN & sign in'));
+    card.appendChild(el('div', { style: 'margin-top:14px;text-align:center' }, el('button', { class: 'link-btn', onclick: () => { loginStage='select'; loginError=''; render(); } }, 'Back')));
+  }
+  wrap.appendChild(card);
+  root.appendChild(wrap);
+}
+
+/* ---------------- Change PIN modal ---------------- */
+function openChangePin() { changePinOpen = true; renderChangePinModal(); }
+function renderChangePinModal() {
+  if (!changePinOpen) return;
+  const backdrop = el('div', { class: 'modal-backdrop', onclick: (e) => { if (e.target === backdrop) { changePinOpen = false; backdrop.remove(); } } });
+  const card = el('div', { class: 'modal-card' });
+  card.appendChild(el('h3', {}, 'Change PIN'));
+  card.appendChild(el('p', { class: 'login-hint' }, 'Enter your current PIN and a new one.'));
+  card.appendChild(el('label', {}, 'Current PIN'));
+  const oldP = el('input', { type: 'password', inputmode: 'numeric' }); card.appendChild(oldP);
+  card.appendChild(el('label', {}, 'New PIN'));
+  const newP = el('input', { type: 'password', inputmode: 'numeric' }); card.appendChild(newP);
+  const err = el('div', { class: 'error-msg' }, ''); card.appendChild(err);
+  card.appendChild(el('div', { class: 'modal-actions' },
+    el('button', { class: 'btn', onclick: () => { changePinOpen = false; backdrop.remove(); } }, 'Cancel'),
+    el('button', { class: 'btn btn-primary', onclick: async () => {
+      const r = await api('changePin', { employeeId: current.id, oldPin: oldP.value.trim(), newPin: newP.value.trim() });
+      if (!r.ok) { err.textContent = r.error || 'Couldn\u2019t update PIN.'; return; }
+      changePinOpen = false; backdrop.remove(); showToast('PIN updated');
+    } }, 'Save')
+  ));
+  backdrop.appendChild(card);
+  document.body.appendChild(backdrop);
+}
+
+/* ---------------- Employee view ---------------- */
+function renderEmployee() {
+  root.appendChild(topbar());
+  root.appendChild(el('div', { class: 'sync-note' }, 'Live figures \u2014 refreshes automatically every 15 seconds.'));
+  const b = balanceFor(current.id);
+  root.appendChild(el('div', { class: 'balance-band' },
+    el('div', {},
+      el('div', { class: 'balance-figure-label' }, 'Cash in hand'),
+      el('div', { class: 'balance-figure' }, fmtMoney(b.balance)),
+      el('div', { class: 'balance-sub' },
+        el('div', { class: 'balance-sub-item' }, el('span', { class: 'pill-in' }, 'Collected: '), el('b', {}, fmtMoney(b.inTotal))),
+        el('div', { class: 'balance-sub-item' }, el('span', { class: 'pill-out' }, 'Handed over: '), el('b', {}, fmtMoney(b.outTotal))),
+        el('div', { class: 'balance-sub-item' }, 'Entries: ', el('b', {}, String(b.count)))
+      )
+    ),
+    el('button', { class: 'btn', onclick: () => exportCSV(current.id, current.name) }, 'Export CSV')
+  ));
+  root.appendChild(renderAddForm(current.id));
+  root.appendChild(el('div', { class: 'section-title' }, 'My ledger'));
+  root.appendChild(renderLedgerTable(txnsFor(current.id)));
+  if (current.isMaster) {
+    root.appendChild(el('div', { style: 'margin-top:22px' }, el('button', { class: 'btn', onclick: () => { view='master'; render(); } }, 'Go to Master Overview \u2192')));
+  }
+}
+
+function renderAddForm(employeeId) {
+  const card = el('div', { class: 'form-card' });
+  card.appendChild(el('h3', {}, 'Add entry'));
+  const inOpt = el('div', { class: 'type-opt' + (txnType === 'in' ? ' active-in' : ''), onclick: () => { txnType='in'; render(); } }, 'Collected (cash in)');
+  const outOpt = el('div', { class: 'type-opt' + (txnType === 'out' ? ' active-out' : ''), onclick: () => { txnType='out'; render(); } }, 'Handed over (cash out)');
+  card.appendChild(el('div', { class: 'type-toggle' }, inOpt, outOpt));
+  const dateInput = el('input', { type: 'date', value: todayISO() });
+  const amountInput = el('input', { type: 'number', min: '0', step: '1', placeholder: '0' });
+  card.appendChild(el('div', { class: 'field-row' }, el('div', {}, el('label', {}, 'Date'), dateInput), el('div', {}, el('label', {}, 'Amount'), amountInput)));
+  const partyInput = el('input', { type: 'text', placeholder: txnType === 'in' ? 'Who gave the cash?' : 'Who received the cash?' });
+  card.appendChild(el('label', {}, txnType === 'in' ? 'Collected from' : 'Handed over to'));
+  card.appendChild(partyInput);
+  const purposeInput = el('input', { type: 'text', list: 'purpose-list', placeholder: 'e.g. Client payment' });
+  const dl = el('datalist', { id: 'purpose-list' }); PURPOSE_SUGGESTIONS.forEach(p => dl.appendChild(el('option', { value: p })));
+  card.appendChild(el('label', {}, 'Purpose')); card.appendChild(purposeInput); card.appendChild(dl);
+  const err = el('div', { class: 'error-msg' }, ''); card.appendChild(err);
+  card.appendChild(el('button', { class: 'btn btn-primary', onclick: async (e) => {
+    const amount = parseFloat(amountInput.value);
+    if (!amount || amount <= 0) { err.textContent = 'Enter an amount greater than 0.'; return; }
+    if (!partyInput.value.trim()) { err.textContent = 'Enter a name.'; return; }
+    e.target.disabled = true;
+    try {
+      const r = await api('addTransaction', { employeeId, date: dateInput.value || todayISO(), amount, type: txnType, party: partyInput.value.trim(), purpose: purposeInput.value.trim() });
+      if (!r.ok) { err.textContent = r.error || 'Couldn\u2019t save \u2014 try again.'; e.target.disabled = false; return; }
+      showToast('Entry added'); err.textContent = '';
+      await refreshTxns();
+    } catch (ex) { err.textContent = 'Couldn\u2019t reach the server.'; }
+    e.target.disabled = false;
+  } }, 'Add entry'));
+  return card;
+}
+
+function renderLedgerTable(list) {
+  const wrap = el('div', { class: 'ledger-wrap' });
+  const table = el('table', { class: 'ledger' });
+  table.appendChild(el('thead', {}, el('tr', {}, el('th', {}, '#'), el('th', {}, 'Date'), el('th', {}, 'Amount'), el('th', {}, 'Collected from'), el('th', {}, 'Handover to'), el('th', {}, 'Purpose'))));
+  const tbody = el('tbody', {});
+  if (!list.length) {
+    tbody.appendChild(el('tr', { class: 'empty-row' }, el('td', { colspan: '6' }, 'No entries yet.')));
+  } else {
+    [...list].sort((a,b) => (b.number||0)-(a.number||0)).forEach(t => {
+      tbody.appendChild(el('tr', {},
+        el('td', { class: 'num' }, String(t.number)),
+        el('td', {}, fmtDate(t.date)),
+        el('td', { class: t.type === 'in' ? 'amt-in' : 'amt-out' }, (t.type === 'in' ? '+' : '\u2212') + fmtMoney(t.amount)),
+        el('td', {}, t.collectedFrom ? t.collectedFrom : el('span', { class: 'dash' }, '\u2014')),
+        el('td', {}, t.handoverTo ? t.handoverTo : el('span', { class: 'dash' }, '\u2014')),
+        el('td', {}, t.purpose || el('span', { class: 'dash' }, '\u2014'))
+      ));
+    });
+  }
+  table.appendChild(tbody); wrap.appendChild(table); return wrap;
+}
+
+/* ---------------- Master overview ---------------- */
+function renderMaster() {
+  root.appendChild(topbar());
+  root.appendChild(el('div', { class: 'sync-note' }, 'Live figures \u2014 refreshes automatically every 15 seconds.'));
+  root.appendChild(el('div', { class: 'tabs' },
+    el('button', { class: 'tab-btn', onclick: () => { view='employee'; render(); } }, 'My cashbook'),
+    el('button', { class: 'tab-btn active' }, 'Master overview')
+  ));
+  const grand = EMPLOYEES.reduce((acc, e) => { const b = balanceFor(e.id); acc.balance += b.balance; acc.in += b.inTotal; acc.out += b.outTotal; return acc; }, { balance: 0, in: 0, out: 0 });
+  root.appendChild(el('div', { class: 'totals-strip' },
+    el('div', {}, 'Total cash in hand (all staff)', el('br'), el('b', {}, fmtMoney(grand.balance))),
+    el('div', {}, 'Total collected', el('br'), el('b', {}, fmtMoney(grand.in))),
+    el('div', {}, 'Total handed over', el('br'), el('b', {}, fmtMoney(grand.out)))
+  ));
+  root.appendChild(el('div', { class: 'row-between' }, el('div', { class: 'section-title' }, 'By employee')));
+  const grid = el('div', { class: 'overview-grid' });
+  EMPLOYEES.forEach(e => {
+    const b = balanceFor(e.id);
+    grid.appendChild(el('button', { class: 'emp-card', onclick: () => { masterFocusId = e.id; view='ledger-detail'; render(); } },
+      el('div', { class: 'emp-card-name' }, e.name + (e.isMaster ? ' \u00b7 Master' : '')),
+      el('div', { class: 'emp-card-balance' }, fmtMoney(b.balance)),
+      el('div', { class: 'emp-card-meta' }, b.count + ' entries \u00b7 in ' + fmtMoney(b.inTotal) + ' / out ' + fmtMoney(b.outTotal))
+    ));
+  });
+  root.appendChild(grid);
+}
+function renderLedgerDetail() {
+  root.appendChild(topbar());
+  const emp = EMPLOYEES.find(e => e.id === masterFocusId);
+  root.appendChild(el('button', { class: 'back-link', onclick: () => { view='master'; render(); } }, '\u2190 Back to overview'));
+  const b = balanceFor(emp.id);
+  root.appendChild(el('div', { class: 'balance-band' },
+    el('div', {},
+      el('div', { class: 'balance-figure-label' }, emp.name + '\u2019s cash in hand'),
+      el('div', { class: 'balance-figure' }, fmtMoney(b.balance)),
+      el('div', { class: 'balance-sub' },
+        el('div', { class: 'balance-sub-item' }, el('span', { class: 'pill-in' }, 'Collected: '), el('b', {}, fmtMoney(b.inTotal))),
+        el('div', { class: 'balance-sub-item' }, el('span', { class: 'pill-out' }, 'Handed over: '), el('b', {}, fmtMoney(b.outTotal))),
+        el('div', { class: 'balance-sub-item' }, 'Entries: ', el('b', {}, String(b.count)))
+      )
+    ),
+    el('button', { class: 'btn', onclick: () => exportCSV(emp.id, emp.name) }, 'Export CSV')
+  ));
+  root.appendChild(el('div', { class: 'section-title' }, 'Full ledger (read-only)'));
+  root.appendChild(renderLedgerTable(txnsFor(emp.id)));
+}
+
+/* ---------------- Boot ---------------- */
+render();
+</script>
+</body>
+</html>

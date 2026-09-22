@@ -67,7 +67,7 @@
   .type-opt.active-in { background: linear-gradient(135deg, var(--credit-bg), #ffffff); border-color: var(--credit); color: var(--credit); }
   .type-opt.active-out { background: linear-gradient(135deg, var(--debit-bg), #ffffff); border-color: var(--debit); color: var(--debit); }
   .ledger-wrap { overflow-x: auto; border: 1px solid var(--rule); border-radius: var(--radius-l); background: var(--paper-raised); }
-  table.ledger { width: 100%; border-collapse: collapse; min-width: 680px; }
+  table.ledger { width: 100%; border-collapse: collapse; min-width: 800px; }
   table.ledger th { text-align: left; font-size: 0.8rem; font-weight: 700; color: var(--ink-soft); padding: 13px 16px; border-bottom: 1px solid var(--rule-strong); white-space: nowrap; background: var(--paper); }
   table.ledger td { padding: 13px 16px; font-size: 0.98rem; border-bottom: 1px solid var(--rule); vertical-align: top; }
   table.ledger tr:last-child td { border-bottom: none; }
@@ -125,9 +125,10 @@ const PURPOSE_SUGGESTIONS = ['Client payment','Vendor payment','Office expense',
 const POLL_MS = 120000;
 const FAST_POLL_MS = 20000;
 
-let current = null, allTxns = [], allTransfers = [], view = 'login', masterFocusId = null, txnType = 'in';
+let current = null, sessionToken = '', allTxns = [], allTransfers = [], view = 'login', masterFocusId = null, txnType = 'in';
 let loginStage = 'select', loginError = '', pendingEmployee = null, loginUserIdValue = '';
 let pollTimer = null, fastPollTimer = null, changePinOpen = false, outTarget = 'external';
+let lastSyncAt = null;
 
 const root = document.getElementById('app');
 const toastEl = document.getElementById('toast');
@@ -141,13 +142,42 @@ async function api(action, payload) {
   if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.indexOf('PASTE_YOUR') === 0) {
     throw new Error('CONFIG');
   }
+
+  const body = Object.assign({ action }, payload || {});
+  const publicActions = ['ping', 'login', 'setPin', 'checkUser'];
+  if (sessionToken && !publicActions.includes(action)) body.token = sessionToken;
+
   const res = await fetch(APPS_SCRIPT_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // avoids CORS preflight against Apps Script
-    body: JSON.stringify(Object.assign({ action }, payload || {}))
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(body)
   });
-  return res.json();
+
+  const data = await res.json();
+
+  if (data && data.error === 'SESSION_EXPIRED') {
+    handleSessionExpired();
+    throw new Error('SESSION_EXPIRED');
+  }
+
+  return data;
 }
+
+function handleSessionExpired() {
+  stopPolling();
+  current = null;
+  sessionToken = '';
+  allTxns = [];
+  allTransfers = [];
+  lastSyncAt = null;
+  view = 'login';
+  loginStage = 'select';
+  loginError = 'Your session expired. Please sign in again.';
+  pendingEmployee = null;
+  loginUserIdValue = '';
+  render();
+}
+
 
 function isUserTyping() {
   const tag = document.activeElement && document.activeElement.tagName;
@@ -158,15 +188,21 @@ async function refreshAll() {
     const [txr, trr] = await Promise.all([api('listTransactions'), api('listTransfers')]);
     if (txr && txr.ok) allTxns = txr.transactions || [];
     if (trr && trr.ok) allTransfers = trr.transfers || [];
-    if (!isUserTyping()) render(); // data is refreshed either way; the redraw just waits until you're not mid-entry
-  } catch (e) { /* silent — keep last known data */ }
+    lastSyncAt = new Date();
+    if (!isUserTyping()) render();
+  } catch (e) {
+    if (e.message !== 'SESSION_EXPIRED') console.error('refreshAll failed:', e);
+  }
 }
 async function refreshTransfersOnly() {
   try {
     const trr = await api('listTransfers');
     if (trr && trr.ok) allTransfers = trr.transfers || [];
+    lastSyncAt = new Date();
     if (!isUserTyping()) render();
-  } catch (e) { /* silent */ }
+  } catch (e) {
+    if (e.message !== 'SESSION_EXPIRED') console.error('refreshTransfersOnly failed:', e);
+  }
 }
 function startPolling() {
   stopPolling();
@@ -188,8 +224,18 @@ function balanceFor(employeeId) {
 
 /* ---------------- CSV export (real browser download, free) ---------------- */
 function toCSV(list) {
-  const rows = [['Txn No','Date','Amount','Collected From','Handover To','Purpose']];
-  list.forEach(t => rows.push([t.number, t.date, t.amount, t.collectedFrom || '', t.handoverTo || '', t.purpose || '']));
+  const rows = [['Txn No','Date','Time','Type','Amount','Collected From','Handover To','Purpose','Transfer ID']];
+  list.forEach(t => rows.push([
+    t.number,
+    t.date,
+    t.transactionTime || '',
+    t.type === 'in' ? 'Cash In' : 'Cash Out',
+    t.amount,
+    t.collectedFrom || '',
+    t.handoverTo || '',
+    t.purpose || '',
+    t.transferId || ''
+  ]));
   const esc = v => '"' + String(v).replace(/"/g,'""') + '"';
   return rows.map(r => r.map(esc).join(',')).join('\n');
 }
@@ -201,6 +247,13 @@ function exportCSV(employeeId, employeeName) {
   a.href = url; a.download = 'Drashti-Cashbook-' + employeeName.replace(/\s+/g,'-') + '-' + todayISO() + '.csv';
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+function syncNote(prefix) {
+  if (!lastSyncAt) return prefix || 'Connecting to live ledger…';
+  const seconds = Math.max(0, Math.floor((Date.now() - lastSyncAt.getTime()) / 1000));
+  const age = seconds < 60 ? 'just now' : Math.floor(seconds / 60) + ' min ago';
+  return (prefix ? prefix + ' ' : '') + 'Last synced ' + age + '.';
 }
 
 /* ---------------- Render shell ---------------- */
@@ -245,7 +298,21 @@ function topbar() {
   );
   return el('div', { class: 'topbar' }, brand, who);
 }
-function logout() { stopPolling(); current = null; allTxns = []; view = 'login'; loginStage = 'select'; loginError=''; pendingEmployee=null; loginUserIdValue=''; render(); }
+async function logout() {
+  try { if (sessionToken) await api('logout'); } catch (e) {}
+  stopPolling();
+  current = null;
+  sessionToken = '';
+  allTxns = [];
+  allTransfers = [];
+  lastSyncAt = null;
+  view = 'login';
+  loginStage = 'select';
+  loginError = '';
+  pendingEmployee = null;
+  loginUserIdValue = '';
+  render();
+}
 
 /* ---------------- Login ---------------- */
 function renderLogin() {
@@ -253,7 +320,7 @@ function renderLogin() {
   wrap.appendChild(topbar());
   const card = el('div', { class: 'login-card' });
   card.appendChild(el('h2', { class: 'login-title' }, loginStage === 'setpin-confirm' ? 'Set your PIN' : 'Sign in'));
-  card.appendChild(el('p', { class: 'login-hint' }, loginStage === 'setpin-confirm' ? 'First time signing in \u2014 choose a 4-digit PIN you\u2019ll use going forward.' : 'Enter the User ID and PIN you were given to open your cashbook.'));
+  card.appendChild(el('p', { class: 'login-hint' }, loginStage === 'setpin-confirm' ? 'First time signing in — enter the administrator setup code and choose a 4–8 digit PIN.' : 'Enter the User ID and PIN you were given to open your cashbook.'));
 
   if (loginStage === 'select' || loginStage === 'pin') {
     card.appendChild(el('label', {}, 'User ID'));
@@ -278,8 +345,14 @@ function renderLogin() {
         const r = await api('login', { employeeId: emp.id, pin });
         if (r.needsSetup) { pendingEmployee = emp; loginStage = 'setpin-confirm'; loginError = ''; render(); return; }
         if (!r.ok) { loginError = r.error || 'Sign-in failed.'; render(); return; }
-        current = emp; view = emp.isMaster ? 'master' : 'employee'; loginError = ''; loginUserIdValue = '';
-        await refreshAll(); startPolling(); render();
+        sessionToken = r.token || '';
+        current = r.employee || emp;
+        view = current.isMaster ? 'master' : 'employee';
+        loginError = '';
+        loginUserIdValue = '';
+        await refreshAll();
+        startPolling();
+        render();
       } catch (ex) { loginError = ex.message === 'CONFIG' ? 'App not configured yet.' : 'Couldn\u2019t reach the server \u2014 check your connection.'; render(); }
     };
     const signInBtn = el('button', { class: 'btn btn-primary', style: 'width:100%', onclick: (e) => doSignIn(e.target) }, 'Sign in');
@@ -298,23 +371,32 @@ function renderLogin() {
   } else if (loginStage === 'setpin-confirm') {
     card.appendChild(el('label', {}, 'User ID'));
     card.appendChild(el('div', { class: 'muted-note', style: 'margin-bottom:16px;font-size:0.9rem;color:var(--ink)' }, pendingEmployee.id + ' \u2014 ' + pendingEmployee.name));
+    card.appendChild(el('label', {}, 'Setup code'));
+    const setupCode = el('input', { type: 'password', autocomplete: 'off', placeholder: 'Provided by your administrator' });
+    card.appendChild(setupCode);
     card.appendChild(el('label', {}, 'New PIN'));
-    const p1 = el('input', { type: 'password', inputmode: 'numeric', maxlength: '8' });
+    const p1 = el('input', { type: 'password', inputmode: 'numeric', maxlength: '8', placeholder: '4–8 digits' });
     card.appendChild(p1);
     card.appendChild(el('label', {}, 'Confirm PIN'));
-    const p2 = el('input', { type: 'password', inputmode: 'numeric', maxlength: '8' });
+    const p2 = el('input', { type: 'password', inputmode: 'numeric', maxlength: '8', placeholder: 'Repeat PIN' });
     card.appendChild(p2);
     const err = el('div', { class: 'error-msg' }, loginError);
     card.appendChild(err);
     const doSavePin = async (btn) => {
-      if (p1.value.length < 4) { loginError = 'Use at least 4 digits.'; render(); return; }
+      if (!/^\d{4,8}$/.test(p1.value)) { loginError = 'Use a 4–8 digit PIN.'; render(); return; }
       if (p1.value !== p2.value) { loginError = 'PINs don\u2019t match.'; render(); return; }
+      if (!setupCode.value.trim()) { loginError = 'Enter the setup code.'; return; }
       if (btn) btn.disabled = true;
-      const r = await api('setPin', { employeeId: pendingEmployee.id, pin: p1.value });
-      if (!r.ok) { loginError = r.error || 'Couldn\u2019t set PIN.'; render(); return; }
-      current = pendingEmployee; view = pendingEmployee.isMaster ? 'master' : 'employee'; loginStage='select'; loginError=''; pendingEmployee=null; loginUserIdValue='';
-      await refreshAll(); startPolling(); render();
-      showToast('PIN set \u2014 welcome!');
+      try {
+        const r = await api('setPin', { employeeId: pendingEmployee.id, pin: p1.value, setupCode: setupCode.value.trim() });
+        if (!r.ok) { loginError = r.error || 'Couldn\u2019t set PIN.'; btn.disabled = false; return; }
+        sessionToken = r.token || '';
+        current = r.employee || pendingEmployee;
+        view = current.isMaster ? 'master' : 'employee';
+        loginStage='select'; loginError=''; pendingEmployee=null; loginUserIdValue='';
+        await refreshAll(); startPolling(); render();
+        showToast('PIN set — welcome!');
+      } catch (ex) { loginError = ex.message === 'CONFIG' ? 'App not configured yet.' : 'Couldn\u2019t reach the server.'; btn.disabled = false; render(); }
     };
     const savePinBtn = el('button', { class: 'btn btn-primary', style: 'width:100%', onclick: (e) => doSavePin(e.target) }, 'Save PIN & sign in');
     p1.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); doSavePin(savePinBtn); } });
@@ -342,7 +424,7 @@ function renderChangePinModal() {
   card.appendChild(el('div', { class: 'modal-actions' },
     el('button', { class: 'btn', onclick: () => { changePinOpen = false; backdrop.remove(); } }, 'Cancel'),
     el('button', { class: 'btn btn-primary', onclick: async () => {
-      const r = await api('changePin', { employeeId: current.id, oldPin: oldP.value.trim(), newPin: newP.value.trim() });
+      const r = await api('changePin', { oldPin: oldP.value.trim(), newPin: newP.value.trim() });
       if (!r.ok) { err.textContent = r.error || 'Couldn\u2019t update PIN.'; return; }
       changePinOpen = false; backdrop.remove(); showToast('PIN updated');
     } }, 'Save')
@@ -373,7 +455,7 @@ function tabsBar(activeKey) {
 function renderEmployee() {
   root.appendChild(topbar());
   root.appendChild(tabsBar('employee'));
-  root.appendChild(el('div', { class: 'sync-note' }, 'Live figures \u2014 ledger refreshes automatically every 2 minutes.'));
+  root.appendChild(el('div', { class: 'sync-note' }, syncNote()));
   const b = balanceFor(current.id);
   root.appendChild(el('div', { class: 'balance-band' },
     el('div', {},
@@ -405,9 +487,10 @@ function renderAddForm(employeeId) {
     card.appendChild(el('div', { class: 'type-toggle', style: 'margin-top:-8px' }, extOpt, empOpt));
   }
 
-  const dateInput = el('input', { type: 'date', value: todayISO() });
-  const amountInput = el('input', { type: 'number', min: '0', step: '1', placeholder: '0' });
-  card.appendChild(el('div', { class: 'field-row' }, el('div', {}, el('label', {}, 'Date'), dateInput), el('div', {}, el('label', {}, 'Amount'), amountInput)));
+  const amountInput = el('input', { type: 'number', min: '1', step: '1', placeholder: '0', inputmode: 'numeric' });
+  card.appendChild(el('label', {}, 'Amount'));
+  card.appendChild(amountInput);
+  card.appendChild(el('div', { class: 'muted-note', style: 'margin:-8px 0 16px' }, 'Date and time are recorded automatically by the server.'));
 
   const purposeInput = el('input', { type: 'text', list: 'purpose-list', placeholder: 'e.g. Client payment' });
   const dl = el('datalist', { id: 'purpose-list' }); PURPOSE_SUGGESTIONS.forEach(p => dl.appendChild(el('option', { value: p })));
@@ -427,7 +510,7 @@ function renderAddForm(employeeId) {
       const toEmp = EMPLOYEES.find(x => x.id === empSelect.value);
       e.target.disabled = true;
       try {
-        const r = await api('createTransfer', { fromEmployeeId: employeeId, fromName: current.name, toEmployeeId: toEmp.id, toName: toEmp.name, date: dateInput.value || todayISO(), amount, purpose: purposeInput.value.trim() });
+        const r = await api('createTransfer', { toEmployeeId: toEmp.id, amount, purpose: purposeInput.value.trim() });
         if (!r.ok) { err.textContent = r.error || 'Couldn\u2019t send \u2014 try again.'; e.target.disabled = false; return; }
         showToast('Sent to ' + toEmp.name + ' for approval'); err.textContent = '';
         amountInput.value = ''; purposeInput.value = '';
@@ -449,7 +532,7 @@ function renderAddForm(employeeId) {
     if (!partyInput.value.trim()) { err.textContent = 'Enter a name.'; return; }
     e.target.disabled = true;
     try {
-      const r = await api('addTransaction', { employeeId, date: dateInput.value || todayISO(), amount, type: txnType, party: partyInput.value.trim(), purpose: purposeInput.value.trim() });
+      const r = await api('addTransaction', { amount, type: txnType, party: partyInput.value.trim(), purpose: purposeInput.value.trim() });
       if (!r.ok) { err.textContent = r.error || 'Couldn\u2019t save \u2014 try again.'; e.target.disabled = false; return; }
       showToast('Entry added'); err.textContent = '';
       amountInput.value = ''; partyInput.value = ''; purposeInput.value = '';
@@ -463,15 +546,16 @@ function renderAddForm(employeeId) {
 function renderLedgerTable(list) {
   const wrap = el('div', { class: 'ledger-wrap' });
   const table = el('table', { class: 'ledger' });
-  table.appendChild(el('thead', {}, el('tr', {}, el('th', {}, '#'), el('th', {}, 'Date'), el('th', {}, 'Amount'), el('th', {}, 'Collected from'), el('th', {}, 'Handover to'), el('th', {}, 'Purpose'))));
+  table.appendChild(el('thead', {}, el('tr', {}, el('th', {}, '#'), el('th', {}, 'Date'), el('th', {}, 'Time'), el('th', {}, 'Amount'), el('th', {}, 'Collected from'), el('th', {}, 'Handover to'), el('th', {}, 'Purpose'))));
   const tbody = el('tbody', {});
   if (!list.length) {
-    tbody.appendChild(el('tr', { class: 'empty-row' }, el('td', { colspan: '6' }, 'No entries yet.')));
+    tbody.appendChild(el('tr', { class: 'empty-row' }, el('td', { colspan: '7' }, 'No entries yet.')));
   } else {
     [...list].sort((a,b) => (b.number||0)-(a.number||0)).forEach(t => {
       tbody.appendChild(el('tr', {},
         el('td', { class: 'num' }, String(t.number)),
         el('td', {}, fmtDate(t.date)),
+        el('td', {}, t.transactionTime || '—'),
         el('td', { class: t.type === 'in' ? 'amt-in' : 'amt-out' }, (t.type === 'in' ? '+' : '\u2212') + fmtMoney(t.amount)),
         el('td', {}, t.collectedFrom ? t.collectedFrom : el('span', { class: 'dash' }, '\u2014')),
         el('td', {}, t.handoverTo ? t.handoverTo : el('span', { class: 'dash' }, '\u2014')),
@@ -486,7 +570,7 @@ function renderLedgerTable(list) {
 function renderMaster() {
   root.appendChild(topbar());
   root.appendChild(tabsBar('master'));
-  root.appendChild(el('div', { class: 'sync-note' }, 'Live figures \u2014 ledger refreshes automatically every 2 minutes.'));
+  root.appendChild(el('div', { class: 'sync-note' }, syncNote()));
   const grand = EMPLOYEES.reduce((acc, e) => { const b = balanceFor(e.id); acc.balance += b.balance; acc.in += b.inTotal; acc.out += b.outTotal; return acc; }, { balance: 0, in: 0, out: 0 });
   root.appendChild(el('div', { class: 'totals-strip' },
     el('div', {}, 'Total cash in hand (all staff)', el('br'), el('b', {}, fmtMoney(grand.balance))),
@@ -544,13 +628,13 @@ function transferRow(t, showActions) {
   if (showActions) {
     right.appendChild(el('button', { class: 'btn btn-small', style: 'border-color:var(--credit);color:var(--credit)', onclick: async (e) => {
       e.target.disabled = true;
-      const r = await api('decideTransfer', { transferId: t.id, actingEmployeeId: current.id, decision: 'approved' });
+      const r = await api('decideTransfer', { transferId: t.id, decision: 'approved' });
       if (!r.ok) { showToast(r.error || 'Couldn\u2019t approve'); e.target.disabled = false; return; }
       showToast('Approved'); await refreshAll();
     } }, 'Approve'));
     right.appendChild(el('button', { class: 'btn btn-small', style: 'border-color:var(--debit);color:var(--debit)', onclick: async (e) => {
       e.target.disabled = true;
-      const r = await api('decideTransfer', { transferId: t.id, actingEmployeeId: current.id, decision: 'rejected' });
+      const r = await api('decideTransfer', { transferId: t.id, decision: 'rejected' });
       if (!r.ok) { showToast(r.error || 'Couldn\u2019t reject'); e.target.disabled = false; return; }
       showToast('Rejected'); await refreshAll();
     } }, 'Reject'));
@@ -563,7 +647,7 @@ function transferRow(t, showActions) {
 function renderApprovals() {
   root.appendChild(topbar());
   root.appendChild(tabsBar('approvals'));
-  root.appendChild(el('div', { class: 'sync-note' }, 'Live figures \u2014 approvals update automatically in the background.'));
+  root.appendChild(el('div', { class: 'sync-note' }, syncNote('Approvals refresh automatically.')));
 
   const incoming = allTransfers.filter(t => t.toEmployeeId === current.id && t.status === 'pending').sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
   const sent = allTransfers.filter(t => t.fromEmployeeId === current.id).sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
@@ -590,7 +674,17 @@ function renderApprovals() {
   }
 }
 
-/* ---------------- Boot ---------------- */
+/* ---------------- Visibility / Boot ---------------- */
+document.addEventListener('visibilitychange', () => {
+  if (!current) return;
+  if (document.hidden) {
+    stopPolling();
+  } else {
+    refreshAll();
+    startPolling();
+  }
+});
+
 render();
 </script>
 </body>

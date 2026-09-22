@@ -93,11 +93,13 @@
   .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: linear-gradient(135deg, var(--ink), #33291f); color: var(--paper); padding: 12px 22px; border-radius: 999px; font-size: 0.92rem; opacity: 0; pointer-events: none; transition: opacity .25s ease, transform .25s ease; z-index: 60; box-shadow: 0 8px 20px rgba(0,0,0,0.25); }
   .toast.show { opacity: 1; transform: translateX(-50%) translateY(-4px); }
   .sync-note { font-size: 0.8rem; color: var(--ink-soft); margin-top: -12px; margin-bottom: 20px; }
+  .app-footer { text-align: center; font-family: var(--font-serif); font-style: italic; font-size: 0.95rem; color: var(--gold); letter-spacing: 0.3px; padding: 18px 16px 34px; opacity: 0.85; }
   @media (max-width: 560px) { html { font-size: 16.5px; } .balance-figure { font-size: 2.2rem; } .field-row { flex-direction: column; } .balance-band { padding: 18px; } }
 </style>
 </head>
 <body>
 <div id="app" class="wrap"></div>
+<footer class="app-footer">Cash counted, journeys uncounted.</footer>
 <div id="toast" class="toast"></div>
 
 <script>

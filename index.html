@@ -278,7 +278,8 @@ function renderLogin() {
       } catch (ex) { loginError = ex.message === 'CONFIG' ? 'App not configured yet.' : 'Couldn\u2019t reach the server \u2014 check your connection.'; render(); }
     };
     const signInBtn = el('button', { class: 'btn btn-primary', style: 'width:100%', onclick: (e) => doSignIn(e.target) }, 'Sign in');
-    pinInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') doSignIn(signInBtn); });
+    idInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); doSignIn(signInBtn); } });
+    pinInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); doSignIn(signInBtn); } });
     card.appendChild(signInBtn);
 
     card.appendChild(el('div', { style: 'margin-top:14px;text-align:center' },
@@ -300,16 +301,20 @@ function renderLogin() {
     card.appendChild(p2);
     const err = el('div', { class: 'error-msg' }, loginError);
     card.appendChild(err);
-    card.appendChild(el('button', { class: 'btn btn-primary', style: 'width:100%', onclick: async (e) => {
+    const doSavePin = async (btn) => {
       if (p1.value.length < 4) { loginError = 'Use at least 4 digits.'; render(); return; }
       if (p1.value !== p2.value) { loginError = 'PINs don\u2019t match.'; render(); return; }
-      e.target.disabled = true;
+      if (btn) btn.disabled = true;
       const r = await api('setPin', { employeeId: pendingEmployee.id, pin: p1.value });
       if (!r.ok) { loginError = r.error || 'Couldn\u2019t set PIN.'; render(); return; }
       current = pendingEmployee; view = pendingEmployee.isMaster ? 'master' : 'employee'; loginStage='select'; loginError=''; pendingEmployee=null; loginUserIdValue='';
       await refreshAll(); startPolling(); render();
       showToast('PIN set \u2014 welcome!');
-    } }, 'Save PIN & sign in'));
+    };
+    const savePinBtn = el('button', { class: 'btn btn-primary', style: 'width:100%', onclick: (e) => doSavePin(e.target) }, 'Save PIN & sign in');
+    p1.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); doSavePin(savePinBtn); } });
+    p2.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); doSavePin(savePinBtn); } });
+    card.appendChild(savePinBtn);
     card.appendChild(el('div', { style: 'margin-top:14px;text-align:center' }, el('button', { class: 'link-btn', onclick: () => { loginStage='select'; loginError=''; render(); } }, 'Back')));
   }
   wrap.appendChild(card);

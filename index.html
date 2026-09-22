@@ -122,8 +122,8 @@ const EMPLOYEES = [
   { id: 'riddhi',   name: 'Riddhi Makwana',   isMaster: false },
 ];
 const PURPOSE_SUGGESTIONS = ['Client payment','Vendor payment','Office expense','Fuel / transport','Salary advance','Bank deposit','Bank withdrawal','Petty cash top-up'];
-const POLL_MS = 60000;
-const FAST_POLL_MS = 5000;
+const POLL_MS = 120000;
+const FAST_POLL_MS = 20000;
 
 let current = null, allTxns = [], allTransfers = [], view = 'login', masterFocusId = null, txnType = 'in';
 let loginStage = 'select', loginError = '', pendingEmployee = null, loginUserIdValue = '';
@@ -149,18 +149,23 @@ async function api(action, payload) {
   return res.json();
 }
 
+function isUserTyping() {
+  const tag = document.activeElement && document.activeElement.tagName;
+  return tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA';
+}
 async function refreshAll() {
   try {
     const [txr, trr] = await Promise.all([api('listTransactions'), api('listTransfers')]);
     if (txr && txr.ok) allTxns = txr.transactions || [];
     if (trr && trr.ok) allTransfers = trr.transfers || [];
-    render();
+    if (!isUserTyping()) render(); // data is refreshed either way; the redraw just waits until you're not mid-entry
   } catch (e) { /* silent — keep last known data */ }
 }
 async function refreshTransfersOnly() {
   try {
     const trr = await api('listTransfers');
-    if (trr && trr.ok) { allTransfers = trr.transfers || []; render(); }
+    if (trr && trr.ok) allTransfers = trr.transfers || [];
+    if (!isUserTyping()) render();
   } catch (e) { /* silent */ }
 }
 function startPolling() {
@@ -368,7 +373,7 @@ function tabsBar(activeKey) {
 function renderEmployee() {
   root.appendChild(topbar());
   root.appendChild(tabsBar('employee'));
-  root.appendChild(el('div', { class: 'sync-note' }, 'Live figures \u2014 ledger refreshes automatically every 60 seconds.'));
+  root.appendChild(el('div', { class: 'sync-note' }, 'Live figures \u2014 ledger refreshes automatically every 2 minutes.'));
   const b = balanceFor(current.id);
   root.appendChild(el('div', { class: 'balance-band' },
     el('div', {},
@@ -481,7 +486,7 @@ function renderLedgerTable(list) {
 function renderMaster() {
   root.appendChild(topbar());
   root.appendChild(tabsBar('master'));
-  root.appendChild(el('div', { class: 'sync-note' }, 'Live figures \u2014 ledger refreshes automatically every 60 seconds.'));
+  root.appendChild(el('div', { class: 'sync-note' }, 'Live figures \u2014 ledger refreshes automatically every 2 minutes.'));
   const grand = EMPLOYEES.reduce((acc, e) => { const b = balanceFor(e.id); acc.balance += b.balance; acc.in += b.inTotal; acc.out += b.outTotal; return acc; }, { balance: 0, in: 0, out: 0 });
   root.appendChild(el('div', { class: 'totals-strip' },
     el('div', {}, 'Total cash in hand (all staff)', el('br'), el('b', {}, fmtMoney(grand.balance))),
@@ -558,7 +563,7 @@ function transferRow(t, showActions) {
 function renderApprovals() {
   root.appendChild(topbar());
   root.appendChild(tabsBar('approvals'));
-  root.appendChild(el('div', { class: 'sync-note' }, 'Live figures \u2014 approvals update automatically every few seconds.'));
+  root.appendChild(el('div', { class: 'sync-note' }, 'Live figures \u2014 approvals update automatically in the background.'));
 
   const incoming = allTransfers.filter(t => t.toEmployeeId === current.id && t.status === 'pending').sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
   const sent = allTransfers.filter(t => t.fromEmployeeId === current.id).sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));

@@ -9,17 +9,17 @@
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Work+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
-    --paper: #FBF7EE; --paper-raised: #FFFFFF; --ink: #241F1B; --ink-soft: #6B6155;
-    --navy: #1D3557; --navy-soft: #34517A; --gold: #B8892B; --gold-soft: #E7D5A8;
-    --rule: #DED4BC; --rule-strong: #C8BA98; --credit: #2F6F4F; --credit-bg: #E7F1EB;
-    --debit: #9C3B2E; --debit-bg: #F3E7E3; --danger: #9C3B2E;
+    --paper: #FAFAF8; --paper-raised: #FFFFFF; --ink: #1E2229; --ink-soft: #66707C;
+    --navy: #17518F; --navy-soft: #2E75BD; --gold: #C79A46; --gold-soft: #F1E0BB;
+    --rule: #E3E1D6; --rule-strong: #CFCBBA; --credit: #1F6F63; --credit-bg: #E4F0EC;
+    --debit: #C6373F; --debit-bg: #FBE8E8; --danger: #C6373F;
     --radius-s: 4px; --radius-m: 8px;
     --font-serif: 'Fraunces', Georgia, serif; --font-sans: 'Work Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--font-sans); min-height: 100vh; }
   .wrap { max-width: 980px; margin: 0 auto; padding: 20px 16px 64px; }
-  .topbar { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding-bottom: 16px; margin-bottom: 20px; border-bottom: 2px solid var(--navy); }
+  .topbar { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding-bottom: 16px; margin-bottom: 20px; border-bottom: 3px solid transparent; border-image: linear-gradient(90deg, var(--gold), var(--navy) 45%, var(--gold)) 1; }
   .brand { display: flex; flex-direction: column; gap: 2px; }
   .brand-name { font-family: var(--font-serif); font-size: 1.5rem; font-weight: 600; color: var(--navy); }
   .brand-sub { font-size: 0.8rem; color: var(--ink-soft); }
@@ -54,6 +54,9 @@
   .tabs { display: flex; gap: 4px; margin-bottom: 18px; border-bottom: 1px solid var(--rule); }
   .tab-btn { font-family: var(--font-sans); font-size: 0.88rem; font-weight: 600; color: var(--ink-soft); background: none; border: none; padding: 10px 4px; margin-right: 20px; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }
   .tab-btn.active { color: var(--navy); border-bottom-color: var(--navy); }
+  .tab-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 19px; height: 19px; padding: 0 5px; border-radius: 999px; background: var(--debit); color: #fff; font-size: 0.72rem; font-weight: 700; margin-left: 7px; vertical-align: middle; line-height: 1; }
+  .brand-row { display: flex; align-items: center; gap: 12px; }
+  .brand-mark { width: 38px; height: 38px; flex: none; border-radius: 50%; background: linear-gradient(135deg, var(--gold), var(--gold-soft)); border: 1.5px solid var(--navy-soft); color: var(--navy); display: flex; align-items: center; justify-content: center; font-family: var(--font-serif); font-weight: 700; font-size: 1rem; }
   .form-card { background: var(--paper-raised); border: 1px solid var(--rule); border-radius: var(--radius-m); padding: 20px 22px; margin-bottom: 24px; }
   .form-card h3 { font-family: var(--font-serif); font-size: 1.15rem; margin: 0 0 16px; font-weight: 600; }
   .type-toggle { display: flex; gap: 8px; margin-bottom: 16px; }
@@ -114,11 +117,12 @@ const EMPLOYEES = [
   { id: 'riddhi',   name: 'Riddhi Makwana',   isMaster: false },
 ];
 const PURPOSE_SUGGESTIONS = ['Client payment','Vendor payment','Office expense','Fuel / transport','Salary advance','Bank deposit','Bank withdrawal','Petty cash top-up'];
-const POLL_MS = 15000;
+const POLL_MS = 60000;
+const FAST_POLL_MS = 5000;
 
 let current = null, allTxns = [], allTransfers = [], view = 'login', masterFocusId = null, txnType = 'in';
 let loginStage = 'select', loginError = '', pendingEmployee = null, loginUserIdValue = '';
-let pollTimer = null, changePinOpen = false, outTarget = 'external';
+let pollTimer = null, fastPollTimer = null, changePinOpen = false, outTarget = 'external';
 
 const root = document.getElementById('app');
 const toastEl = document.getElementById('toast');
@@ -148,8 +152,21 @@ async function refreshAll() {
     render();
   } catch (e) { /* silent — keep last known data */ }
 }
-function startPolling() { stopPolling(); pollTimer = setInterval(refreshAll, POLL_MS); }
-function stopPolling() { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
+async function refreshTransfersOnly() {
+  try {
+    const trr = await api('listTransfers');
+    if (trr && trr.ok) { allTransfers = trr.transfers || []; render(); }
+  } catch (e) { /* silent */ }
+}
+function startPolling() {
+  stopPolling();
+  pollTimer = setInterval(refreshAll, POLL_MS);
+  fastPollTimer = setInterval(refreshTransfersOnly, FAST_POLL_MS);
+}
+function stopPolling() {
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+  if (fastPollTimer) { clearInterval(fastPollTimer); fastPollTimer = null; }
+}
 
 function txnsFor(employeeId) { return allTxns.filter(t => t.employeeId === employeeId); }
 function balanceFor(employeeId) {
@@ -206,7 +223,10 @@ function renderNotConfigured() {
 
 /* ---------------- Topbar ---------------- */
 function topbar() {
-  const brand = el('div', { class: 'brand' }, el('div', { class: 'brand-name' }, 'Drashti Cashbook'), el('div', { class: 'brand-sub' }, 'Drashti Tours & Travels \u2014 daily cash ledger'));
+  const brand = el('div', { class: 'brand-row' },
+    el('div', { class: 'brand-mark' }, 'DT'),
+    el('div', { class: 'brand' }, el('div', { class: 'brand-name' }, 'Drashti Cashbook'), el('div', { class: 'brand-sub' }, 'Drashti Tours & Travels \u2014 daily cash ledger'))
+  );
   if (!current) return el('div', { class: 'topbar' }, brand);
   const who = el('div', { class: 'who' },
     el('span', { class: 'who-name' }, current.name + (current.isMaster ? ' \u00b7 Master' : '')),
@@ -322,11 +342,15 @@ function tabsBar(activeKey) {
   const pendingCount = pendingApprovalsForMe().length;
   const tabs = [
     { key: 'employee', label: 'My cashbook' },
-    { key: 'approvals', label: 'Approvals' + (pendingCount ? ' (' + pendingCount + ')' : '') },
+    { key: 'approvals', label: 'Approvals' },
   ];
   if (current.isMaster) tabs.push({ key: 'master', label: 'Master overview' });
   const bar = el('div', { class: 'tabs' });
-  tabs.forEach(t => bar.appendChild(el('button', { class: 'tab-btn' + (activeKey === t.key ? ' active' : ''), onclick: () => { view = t.key; render(); } }, t.label)));
+  tabs.forEach(t => {
+    const children = [t.label];
+    if (t.key === 'approvals' && pendingCount > 0) children.push(el('span', { class: 'tab-badge' }, String(pendingCount)));
+    bar.appendChild(el('button', { class: 'tab-btn' + (activeKey === t.key ? ' active' : ''), onclick: () => { view = t.key; render(); } }, ...children));
+  });
   return bar;
 }
 
@@ -334,7 +358,7 @@ function tabsBar(activeKey) {
 function renderEmployee() {
   root.appendChild(topbar());
   root.appendChild(tabsBar('employee'));
-  root.appendChild(el('div', { class: 'sync-note' }, 'Live figures \u2014 refreshes automatically every 15 seconds.'));
+  root.appendChild(el('div', { class: 'sync-note' }, 'Live figures \u2014 ledger refreshes automatically every 60 seconds.'));
   const b = balanceFor(current.id);
   root.appendChild(el('div', { class: 'balance-band' },
     el('div', {},
@@ -362,7 +386,7 @@ function renderAddForm(employeeId) {
 
   if (txnType === 'out') {
     const extOpt = el('div', { class: 'type-opt' + (outTarget === 'external' ? ' active-out' : ''), style: 'font-size:0.8rem', onclick: () => { outTarget='external'; render(); } }, 'External party');
-    const empOpt = el('div', { class: 'type-opt' + (outTarget === 'employee' ? ' active-out' : ''), style: 'font-size:0.8rem', onclick: () => { outTarget='employee'; render(); } }, 'Employee (needs approval)');
+    const empOpt = el('div', { class: 'type-opt' + (outTarget === 'employee' ? ' active-out' : ''), style: 'font-size:0.8rem', onclick: () => { outTarget='employee'; render(); } }, 'Team Transfer');
     card.appendChild(el('div', { class: 'type-toggle', style: 'margin-top:-8px' }, extOpt, empOpt));
   }
 
@@ -378,7 +402,7 @@ function renderAddForm(employeeId) {
     const others = EMPLOYEES.filter(x => x.id !== employeeId);
     const empSelect = el('select', {});
     others.forEach(x => empSelect.appendChild(el('option', { value: x.id }, x.name)));
-    card.appendChild(el('label', {}, 'Send to (employee)'));
+    card.appendChild(el('label', {}, 'Send to (team member)'));
     card.appendChild(empSelect);
     card.appendChild(el('label', {}, 'Purpose')); card.appendChild(purposeInput); card.appendChild(dl);
     card.appendChild(err);
@@ -447,7 +471,7 @@ function renderLedgerTable(list) {
 function renderMaster() {
   root.appendChild(topbar());
   root.appendChild(tabsBar('master'));
-  root.appendChild(el('div', { class: 'sync-note' }, 'Live figures \u2014 refreshes automatically every 15 seconds.'));
+  root.appendChild(el('div', { class: 'sync-note' }, 'Live figures \u2014 ledger refreshes automatically every 60 seconds.'));
   const grand = EMPLOYEES.reduce((acc, e) => { const b = balanceFor(e.id); acc.balance += b.balance; acc.in += b.inTotal; acc.out += b.outTotal; return acc; }, { balance: 0, in: 0, out: 0 });
   root.appendChild(el('div', { class: 'totals-strip' },
     el('div', {}, 'Total cash in hand (all staff)', el('br'), el('b', {}, fmtMoney(grand.balance))),
@@ -524,7 +548,7 @@ function transferRow(t, showActions) {
 function renderApprovals() {
   root.appendChild(topbar());
   root.appendChild(tabsBar('approvals'));
-  root.appendChild(el('div', { class: 'sync-note' }, 'Live figures \u2014 refreshes automatically every 15 seconds.'));
+  root.appendChild(el('div', { class: 'sync-note' }, 'Live figures \u2014 approvals update automatically every few seconds.'));
 
   const incoming = allTransfers.filter(t => t.toEmployeeId === current.id && t.status === 'pending').sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
   const sent = allTransfers.filter(t => t.fromEmployeeId === current.id).sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));

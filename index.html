@@ -96,14 +96,9 @@
 
 <script>
 /* =====================================================================
-   DRASHTI CASHBOOK
-   Fixed version:
-   - 15-second polling remains active
-   - Polling no longer destroys the Add Entry form
-   - Typed information stays in the fields
-   - After successful submission, fields are cleared intentionally
+   REQUIRED: paste your deployed Apps Script Web App URL below.
+   It looks like: https://script.google.com/macros/s/XXXXXXXX/exec
    ===================================================================== */
-
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbygy1ps6BWq_6yQpcLex0ZLNRicBdayzYYIEnWBvs1vLunzXe61tED0IPoZjI33BHygSQ/exec';
 
 const EMPLOYEES = [
@@ -118,2362 +113,446 @@ const EMPLOYEES = [
   { id: 'harsiddh', name: 'Harsiddh Parmar',  isMaster: false },
   { id: 'riddhi',   name: 'Riddhi Makwana',   isMaster: false },
 ];
-
-const PURPOSE_SUGGESTIONS = [
-  'Client payment',
-  'Vendor payment',
-  'Office expense',
-  'Fuel / transport',
-  'Salary advance',
-  'Bank deposit',
-  'Bank withdrawal',
-  'Petty cash top-up'
-];
-
+const PURPOSE_SUGGESTIONS = ['Client payment','Vendor payment','Office expense','Fuel / transport','Salary advance','Bank deposit','Bank withdrawal','Petty cash top-up'];
 const POLL_MS = 15000;
 
-let current = null;
-let allTxns = [];
-let view = 'login';
-let masterFocusId = null;
-let txnType = 'in';
-
-let loginStage = 'select';
-let loginError = '';
-let pendingEmployee = null;
-let loginUserIdValue = '';
-
-let pollTimer = null;
-let changePinOpen = false;
+let current = null, allTxns = [], allTransfers = [], view = 'login', masterFocusId = null, txnType = 'in';
+let loginStage = 'select', loginError = '', pendingEmployee = null, loginUserIdValue = '';
+let pollTimer = null, changePinOpen = false, outTarget = 'external';
 
 const root = document.getElementById('app');
 const toastEl = document.getElementById('toast');
+function showToast(msg) { toastEl.textContent = msg; toastEl.classList.add('show'); setTimeout(() => toastEl.classList.remove('show'), 2200); }
+function fmtMoney(n) { const v = Number(n) || 0; return '\u20B9' + v.toLocaleString('en-IN', { maximumFractionDigits: 0 }); }
+function fmtDate(iso) { if (!iso) return ''; const d = new Date(iso + 'T00:00:00'); if (isNaN(d)) return iso; return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }); }
+function todayISO() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
 
-
-/* =====================================================================
-   HELPERS
-   ===================================================================== */
-
-function showToast(msg) {
-  toastEl.textContent = msg;
-  toastEl.classList.add('show');
-
-  setTimeout(() => {
-    toastEl.classList.remove('show');
-  }, 2200);
-}
-
-function fmtMoney(n) {
-  const v = Number(n) || 0;
-  return '\u20B9' + v.toLocaleString('en-IN', {
-    maximumFractionDigits: 0
-  });
-}
-
-function fmtDate(iso) {
-  if (!iso) return '';
-
-  const d = new Date(iso + 'T00:00:00');
-
-  if (isNaN(d)) return iso;
-
-  return d.toLocaleDateString('en-IN', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric'
-  });
-}
-
-function todayISO() {
-  const d = new Date();
-
-  return d.getFullYear() +
-    '-' +
-    String(d.getMonth() + 1).padStart(2, '0') +
-    '-' +
-    String(d.getDate()).padStart(2, '0');
-}
-
-
-/* =====================================================================
-   API
-   ===================================================================== */
-
+/* ---------------- API ---------------- */
 async function api(action, payload) {
-
-  if (
-    !APPS_SCRIPT_URL ||
-    APPS_SCRIPT_URL.indexOf('PASTE_YOUR') === 0
-  ) {
+  if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.indexOf('PASTE_YOUR') === 0) {
     throw new Error('CONFIG');
   }
-
   const res = await fetch(APPS_SCRIPT_URL, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'text/plain;charset=utf-8'
-    },
-    body: JSON.stringify(
-      Object.assign(
-        { action },
-        payload || {}
-      )
-    )
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // avoids CORS preflight against Apps Script
+    body: JSON.stringify(Object.assign({ action }, payload || {}))
   });
-
   return res.json();
 }
 
-
-/* =====================================================================
-   REFRESH TRANSACTIONS
-   IMPORTANT FIX:
-   This no longer calls render() during normal polling.
-   ===================================================================== */
-
-async function refreshTxns() {
-
+async function refreshAll() {
   try {
-
-    const r = await api('listTransactions');
-
-    if (r && r.ok) {
-
-      allTxns = r.transactions || [];
-
-      /*
-       * IMPORTANT:
-       *
-       * Previously this was:
-       *
-       * allTxns = r.transactions || [];
-       * render();
-       *
-       * That destroyed the Add Entry form every time polling ran.
-       *
-       * Now we update only the live figures/ledger.
-       */
-
-      updateLiveData();
-    }
-
-  } catch (e) {
-
-    /* Silent — keep last known data */
-
-  }
-}
-
-
-/* =====================================================================
-   LIVE DATA UPDATE
-   ===================================================================== */
-
-function updateLiveData() {
-
-  if (!current) return;
-
-
-  /* ---------------------------------------------------------------
-     EMPLOYEE VIEW
-     --------------------------------------------------------------- */
-
-  if (view === 'employee') {
-
-    const b = balanceFor(current.id);
-
-
-    /* Balance figure */
-
-    const balanceFigure =
-      document.querySelector('.balance-figure');
-
-    if (balanceFigure) {
-      balanceFigure.textContent = fmtMoney(b.balance);
-    }
-
-
-    /* Collected / handed over / entries */
-
-    const balanceItems =
-      document.querySelectorAll('.balance-sub-item');
-
-    if (balanceItems.length >= 3) {
-
-      balanceItems[0].innerHTML =
-        '<span class="pill-in">Collected: </span>' +
-        '<b>' +
-        fmtMoney(b.inTotal) +
-        '</b>';
-
-      balanceItems[1].innerHTML =
-        '<span class="pill-out">Handed over: </span>' +
-        '<b>' +
-        fmtMoney(b.outTotal) +
-        '</b>';
-
-      balanceItems[2].innerHTML =
-        'Entries: <b>' +
-        String(b.count) +
-        '</b>';
-    }
-
-
-    /* -------------------------------------------------------------
-       Update ledger only
-       ------------------------------------------------------------- */
-
-    const sectionTitles =
-      document.querySelectorAll('.section-title');
-
-    let ledgerTitle = null;
-
-    sectionTitles.forEach(el => {
-      if (el.textContent.trim() === 'My ledger') {
-        ledgerTitle = el;
-      }
-    });
-
-    if (ledgerTitle) {
-
-      const oldLedger =
-        ledgerTitle.nextElementSibling;
-
-      if (
-        oldLedger &&
-        oldLedger.classList.contains('ledger-wrap')
-      ) {
-
-        oldLedger.replaceWith(
-          renderLedgerTable(
-            txnsFor(current.id)
-          )
-        );
-
-      }
-    }
-
-    return;
-  }
-
-
-  /* ---------------------------------------------------------------
-     MASTER OVERVIEW
-     --------------------------------------------------------------- */
-
-  if (view === 'master') {
-
+    const [txr, trr] = await Promise.all([api('listTransactions'), api('listTransfers')]);
+    if (txr && txr.ok) allTxns = txr.transactions || [];
+    if (trr && trr.ok) allTransfers = trr.transfers || [];
     render();
-    return;
-  }
-
-
-  /* ---------------------------------------------------------------
-     MASTER LEDGER DETAIL
-     --------------------------------------------------------------- */
-
-  if (view === 'ledger-detail') {
-
-    render();
-    return;
-  }
+  } catch (e) { /* silent — keep last known data */ }
 }
+function startPolling() { stopPolling(); pollTimer = setInterval(refreshAll, POLL_MS); }
+function stopPolling() { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
 
-
-/* =====================================================================
-   POLLING
-   ===================================================================== */
-
-function startPolling() {
-
-  stopPolling();
-
-  pollTimer = setInterval(
-    refreshTxns,
-    POLL_MS
-  );
-}
-
-function stopPolling() {
-
-  if (pollTimer) {
-
-    clearInterval(pollTimer);
-
-    pollTimer = null;
-  }
-}
-
-
-/* =====================================================================
-   TRANSACTION CALCULATIONS
-   ===================================================================== */
-
-function txnsFor(employeeId) {
-
-  return allTxns.filter(
-    t => t.employeeId === employeeId
-  );
-}
-
+function txnsFor(employeeId) { return allTxns.filter(t => t.employeeId === employeeId); }
 function balanceFor(employeeId) {
-
   const list = txnsFor(employeeId);
-
-  let inTotal = 0;
-  let outTotal = 0;
-
-  list.forEach(t => {
-
-    if (t.type === 'in') {
-
-      inTotal += Number(t.amount) || 0;
-
-    } else {
-
-      outTotal += Number(t.amount) || 0;
-
-    }
-
-  });
-
-  return {
-    balance: inTotal - outTotal,
-    inTotal,
-    outTotal,
-    count: list.length
-  };
+  let inTotal = 0, outTotal = 0;
+  list.forEach(t => { if (t.type === 'in') inTotal += Number(t.amount)||0; else outTotal += Number(t.amount)||0; });
+  return { balance: inTotal - outTotal, inTotal, outTotal, count: list.length };
 }
 
-
-/* =====================================================================
-   CSV EXPORT
-   ===================================================================== */
-
+/* ---------------- CSV export (real browser download, free) ---------------- */
 function toCSV(list) {
-
-  const rows = [[
-    'Txn No',
-    'Date',
-    'Amount',
-    'Collected From',
-    'Handover To',
-    'Purpose'
-  ]];
-
-  list.forEach(t => {
-
-    rows.push([
-      t.number,
-      t.date,
-      t.amount,
-      t.collectedFrom || '',
-      t.handoverTo || '',
-      t.purpose || ''
-    ]);
-
-  });
-
-  const esc = v =>
-    '"' +
-    String(v).replace(/"/g, '""') +
-    '"';
-
-  return rows
-    .map(r => r.map(esc).join(','))
-    .join('\n');
+  const rows = [['Txn No','Date','Amount','Collected From','Handover To','Purpose']];
+  list.forEach(t => rows.push([t.number, t.date, t.amount, t.collectedFrom || '', t.handoverTo || '', t.purpose || '']));
+  const esc = v => '"' + String(v).replace(/"/g,'""') + '"';
+  return rows.map(r => r.map(esc).join(',')).join('\n');
 }
-
 function exportCSV(employeeId, employeeName) {
-
-  const csv =
-    toCSV(txnsFor(employeeId));
-
-  const blob = new Blob(
-    [csv],
-    {
-      type: 'text/csv;charset=utf-8;'
-    }
-  );
-
-  const url =
-    URL.createObjectURL(blob);
-
-  const a =
-    document.createElement('a');
-
-  a.href = url;
-
-  a.download =
-    'Drashti-Cashbook-' +
-    employeeName.replace(/\s+/g, '-') +
-    '-' +
-    todayISO() +
-    '.csv';
-
-  document.body.appendChild(a);
-
-  a.click();
-
-  document.body.removeChild(a);
-
+  const csv = toCSV(txnsFor(employeeId));
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'Drashti-Cashbook-' + employeeName.replace(/\s+/g,'-') + '-' + todayISO() + '.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
 
-
-/* =====================================================================
-   RENDER SHELL
-   ===================================================================== */
-
+/* ---------------- Render shell ---------------- */
 function render() {
-
   root.innerHTML = '';
-
-  if (
-    !APPS_SCRIPT_URL ||
-    APPS_SCRIPT_URL.indexOf('PASTE_YOUR') === 0
-  ) {
-
-    renderNotConfigured();
-    return;
-  }
-
-  if (view === 'login' || !current) {
-
-    renderLogin();
-    return;
-  }
-
-  if (
-    view === 'master' &&
-    current.isMaster
-  ) {
-
-    renderMaster();
-    return;
-  }
-
-  if (
-    view === 'ledger-detail' &&
-    current.isMaster
-  ) {
-
-    renderLedgerDetail();
-    return;
-  }
-
+  if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.indexOf('PASTE_YOUR') === 0) { renderNotConfigured(); return; }
+  if (view === 'login' || !current) { renderLogin(); return; }
+  if (view === 'master' && current.isMaster) { renderMaster(); return; }
+  if (view === 'ledger-detail' && current.isMaster) { renderLedgerDetail(); return; }
+  if (view === 'approvals') { renderApprovals(); return; }
   renderEmployee();
 }
-
-
-/* =====================================================================
-   ELEMENT CREATOR
-   ===================================================================== */
-
 function el(tag, attrs, ...children) {
-
-  const node =
-    document.createElement(tag);
-
-  attrs = attrs || {};
-
+  const node = document.createElement(tag); attrs = attrs || {};
   Object.keys(attrs).forEach(k => {
-
-    if (k === 'style') {
-
-      node.style.cssText = attrs[k];
-
-    } else if (
-      k.startsWith('on') &&
-      typeof attrs[k] === 'function'
-    ) {
-
-      node.addEventListener(
-        k.slice(2),
-        attrs[k]
-      );
-
-    } else if (k === 'class') {
-
-      node.className = attrs[k];
-
-    } else {
-
-      node.setAttribute(
-        k,
-        attrs[k]
-      );
-
-    }
-
+    if (k === 'style') node.style.cssText = attrs[k];
+    else if (k.startsWith('on') && typeof attrs[k] === 'function') node.addEventListener(k.slice(2), attrs[k]);
+    else if (k === 'class') node.className = attrs[k];
+    else node.setAttribute(k, attrs[k]);
   });
-
-  children.flat().forEach(c => {
-
-    if (
-      c === null ||
-      c === undefined ||
-      c === false
-    ) return;
-
-    node.appendChild(
-      typeof c === 'string' ||
-      typeof c === 'number'
-        ? document.createTextNode(c)
-        : c
-    );
-
-  });
-
+  children.flat().forEach(c => { if (c === null || c === undefined || c === false) return; node.appendChild(typeof c === 'string' || typeof c === 'number' ? document.createTextNode(c) : c); });
   return node;
 }
-
-
-/* =====================================================================
-   NOT CONFIGURED
-   ===================================================================== */
-
 function renderNotConfigured() {
-
-  root.appendChild(
-    el(
-      'div',
-      { class: 'login-shell' },
-
-      el(
-        'div',
-        { class: 'login-card' },
-
-        el(
-          'h2',
-          { class: 'login-title' },
-          'Almost there'
-        ),
-
-        el(
-          'p',
-          { class: 'login-hint' },
-          'This page needs your Google Apps Script Web App URL. Open this HTML file, find APPS_SCRIPT_URL near the top of the script, and paste your deployment URL in — then reload this page.'
-        )
-
-      )
-    )
-  );
+  root.appendChild(el('div', { class: 'login-shell' }, el('div', { class: 'login-card' },
+    el('h2', { class: 'login-title' }, 'Almost there'),
+    el('p', { class: 'login-hint' }, 'This page needs your Google Apps Script Web App URL. Open this HTML file, find APPS_SCRIPT_URL near the top of the script, and paste your deployment URL in \u2014 then reload this page.')
+  )));
 }
 
-
-/* =====================================================================
-   TOPBAR
-   ===================================================================== */
-
+/* ---------------- Topbar ---------------- */
 function topbar() {
-
-  const brand =
-    el(
-      'div',
-      { class: 'brand' },
-
-      el(
-        'div',
-        { class: 'brand-name' },
-        'Drashti Cashbook'
-      ),
-
-      el(
-        'div',
-        { class: 'brand-sub' },
-        'Drashti Tours & Travels — daily cash ledger'
-      )
-    );
-
-  if (!current) {
-
-    return el(
-      'div',
-      { class: 'topbar' },
-      brand
-    );
-  }
-
-  const who =
-    el(
-      'div',
-      { class: 'who' },
-
-      el(
-        'span',
-        { class: 'who-name' },
-        current.name +
-        (current.isMaster
-          ? ' · Master'
-          : '')
-      ),
-
-      el(
-        'button',
-        {
-          class: 'btn btn-small',
-          onclick: openChangePin
-        },
-        'Change PIN'
-      ),
-
-      el(
-        'button',
-        {
-          class: 'btn btn-small',
-          onclick: logout
-        },
-        'Log out'
-      )
-    );
-
-  return el(
-    'div',
-    { class: 'topbar' },
-    brand,
-    who
+  const brand = el('div', { class: 'brand' }, el('div', { class: 'brand-name' }, 'Drashti Cashbook'), el('div', { class: 'brand-sub' }, 'Drashti Tours & Travels \u2014 daily cash ledger'));
+  if (!current) return el('div', { class: 'topbar' }, brand);
+  const who = el('div', { class: 'who' },
+    el('span', { class: 'who-name' }, current.name + (current.isMaster ? ' \u00b7 Master' : '')),
+    el('button', { class: 'btn btn-small', onclick: openChangePin }, 'Change PIN'),
+    el('button', { class: 'btn btn-small', onclick: logout }, 'Log out')
   );
+  return el('div', { class: 'topbar' }, brand, who);
 }
+function logout() { stopPolling(); current = null; allTxns = []; view = 'login'; loginStage = 'select'; loginError=''; pendingEmployee=null; loginUserIdValue=''; render(); }
 
-
-function logout() {
-
-  stopPolling();
-
-  current = null;
-  allTxns = [];
-  view = 'login';
-
-  loginStage = 'select';
-  loginError = '';
-  pendingEmployee = null;
-  loginUserIdValue = '';
-
-  render();
-}
-
-
-/* =====================================================================
-   LOGIN
-   ===================================================================== */
-
+/* ---------------- Login ---------------- */
 function renderLogin() {
-
-  const wrap =
-    el(
-      'div',
-      { class: 'login-shell' }
-    );
-
+  const wrap = el('div', { class: 'login-shell' });
   wrap.appendChild(topbar());
+  const card = el('div', { class: 'login-card' });
+  card.appendChild(el('h2', { class: 'login-title' }, loginStage === 'setpin-confirm' ? 'Set your PIN' : 'Sign in'));
+  card.appendChild(el('p', { class: 'login-hint' }, loginStage === 'setpin-confirm' ? 'First time signing in \u2014 choose a 4-digit PIN you\u2019ll use going forward.' : 'Enter the User ID and PIN you were given to open your cashbook.'));
 
-  const card =
-    el(
-      'div',
-      { class: 'login-card' }
-    );
-
-  card.appendChild(
-    el(
-      'h2',
-      { class: 'login-title' },
-      loginStage === 'setpin-confirm'
-        ? 'Set your PIN'
-        : 'Sign in'
-    )
-  );
-
-  card.appendChild(
-    el(
-      'p',
-      { class: 'login-hint' },
-      loginStage === 'setpin-confirm'
-        ? 'First time signing in — choose a 4-digit PIN you’ll use going forward.'
-        : 'Enter the User ID and PIN you were given to open your cashbook.'
-    )
-  );
-
-
-  if (
-    loginStage === 'select' ||
-    loginStage === 'pin'
-  ) {
-
-    card.appendChild(
-      el(
-        'label',
-        {},
-        'User ID'
-      )
-    );
-
-    const idInput =
-      el(
-        'input',
-        {
-          type: 'text',
-          autocapitalize: 'none',
-          autocomplete: 'off',
-          placeholder: 'e.g. vishal',
-          value: loginUserIdValue
-        }
-      );
-
-    idInput.addEventListener(
-      'input',
-      () => {
-        loginUserIdValue =
-          idInput.value;
-      }
-    );
-
+  if (loginStage === 'select' || loginStage === 'pin') {
+    card.appendChild(el('label', {}, 'User ID'));
+    const idInput = el('input', { type: 'text', autocapitalize: 'none', autocomplete: 'off', placeholder: 'e.g. vishal', value: loginUserIdValue });
+    idInput.addEventListener('input', () => { loginUserIdValue = idInput.value; });
     card.appendChild(idInput);
-
-
-    card.appendChild(
-      el(
-        'label',
-        {},
-        'PIN'
-      )
-    );
-
-    const pinInput =
-      el(
-        'input',
-        {
-          type: 'password',
-          inputmode: 'numeric',
-          maxlength: '8',
-          placeholder: '••••'
-        }
-      );
-
+    card.appendChild(el('label', {}, 'PIN'));
+    const pinInput = el('input', { type: 'password', inputmode: 'numeric', maxlength: '8', placeholder: '\u2022\u2022\u2022\u2022' });
     card.appendChild(pinInput);
-
-
-    const err =
-      el(
-        'div',
-        { class: 'error-msg' },
-        loginError
-      );
-
+    const err = el('div', { class: 'error-msg' }, loginError);
     card.appendChild(err);
 
-
-    const doSignIn =
-      async btn => {
-
-        const typedId =
-          idInput.value
-            .trim()
-            .toLowerCase();
-
-        const emp =
-          EMPLOYEES.find(
-            x =>
-              x.id.toLowerCase() === typedId
-          );
-
-        const pin =
-          pinInput.value.trim();
-
-
-        if (!typedId) {
-
-          loginError =
-            'Enter your User ID.';
-
-          render();
-          return;
-        }
-
-        if (!emp) {
-
-          loginError =
-            'User ID not recognised — check with your admin.';
-
-          render();
-          return;
-        }
-
-        if (!pin) {
-
-          loginError =
-            'Enter your PIN.';
-
-          render();
-          return;
-        }
-
-        if (btn) {
-          btn.disabled = true;
-        }
-
-
-        try {
-
-          const r =
-            await api(
-              'login',
-              {
-                employeeId: emp.id,
-                pin
-              }
-            );
-
-
-          if (r.needsSetup) {
-
-            pendingEmployee = emp;
-            loginStage = 'setpin-confirm';
-            loginError = '';
-
-            render();
-
-            return;
-          }
-
-
-          if (!r.ok) {
-
-            loginError =
-              r.error ||
-              'Sign-in failed.';
-
-            render();
-
-            return;
-          }
-
-
-          current = emp;
-
-          view =
-            emp.isMaster
-              ? 'master'
-              : 'employee';
-
-          loginError = '';
-          loginUserIdValue = '';
-
-          await refreshTxns();
-
-          startPolling();
-
-          render();
-
-        } catch (ex) {
-
-          loginError =
-            ex.message === 'CONFIG'
-              ? 'App not configured yet.'
-              : 'Couldn’t reach the server — check your connection.';
-
-          render();
-        }
-      };
-
-
-    const signInBtn =
-      el(
-        'button',
-        {
-          class: 'btn btn-primary',
-          style: 'width:100%',
-          onclick: e =>
-            doSignIn(e.target)
-        },
-        'Sign in'
-      );
-
-    pinInput.addEventListener(
-      'keydown',
-      e => {
-
-        if (e.key === 'Enter') {
-
-          doSignIn(signInBtn);
-        }
-      }
-    );
-
+    const doSignIn = async (btn) => {
+      const typedId = idInput.value.trim().toLowerCase();
+      const emp = EMPLOYEES.find(x => x.id.toLowerCase() === typedId);
+      const pin = pinInput.value.trim();
+      if (!typedId) { loginError = 'Enter your User ID.'; render(); return; }
+      if (!emp) { loginError = 'User ID not recognised \u2014 check with your admin.'; render(); return; }
+      if (!pin) { loginError = 'Enter your PIN.'; render(); return; }
+      if (btn) btn.disabled = true;
+      try {
+        const r = await api('login', { employeeId: emp.id, pin });
+        if (r.needsSetup) { pendingEmployee = emp; loginStage = 'setpin-confirm'; loginError = ''; render(); return; }
+        if (!r.ok) { loginError = r.error || 'Sign-in failed.'; render(); return; }
+        current = emp; view = emp.isMaster ? 'master' : 'employee'; loginError = ''; loginUserIdValue = '';
+        await refreshAll(); startPolling(); render();
+      } catch (ex) { loginError = ex.message === 'CONFIG' ? 'App not configured yet.' : 'Couldn\u2019t reach the server \u2014 check your connection.'; render(); }
+    };
+    const signInBtn = el('button', { class: 'btn btn-primary', style: 'width:100%', onclick: (e) => doSignIn(e.target) }, 'Sign in');
+    pinInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') doSignIn(signInBtn); });
     card.appendChild(signInBtn);
 
-
-    card.appendChild(
-      el(
-        'div',
-        {
-          style:
-            'margin-top:14px;text-align:center'
-        },
-
-        el(
-          'button',
-          {
-            class: 'link-btn',
-
-            onclick: async () => {
-
-              const typedId =
-                idInput.value
-                  .trim()
-                  .toLowerCase();
-
-              const emp =
-                EMPLOYEES.find(
-                  x =>
-                    x.id.toLowerCase() === typedId
-                );
-
-              if (!emp) {
-
-                loginError =
-                  'Enter a valid User ID first.';
-
-                render();
-
-                return;
-              }
-
-              pendingEmployee = emp;
-              loginStage =
-                'setpin-confirm';
-
-              loginError = '';
-
-              render();
-            }
-          },
-
-          'First time here? Set your PIN'
-        )
-      )
-    );
-
-  } else if (
-    loginStage === 'setpin-confirm'
-  ) {
-
-    card.appendChild(
-      el(
-        'label',
-        {},
-        'User ID'
-      )
-    );
-
-    card.appendChild(
-      el(
-        'div',
-        {
-          class: 'muted-note',
-          style:
-            'margin-bottom:16px;font-size:0.9rem;color:var(--ink)'
-        },
-
-        pendingEmployee.id +
-        ' — ' +
-        pendingEmployee.name
-      )
-    );
-
-
-    card.appendChild(
-      el(
-        'label',
-        {},
-        'New PIN'
-      )
-    );
-
-    const p1 =
-      el(
-        'input',
-        {
-          type: 'password',
-          inputmode: 'numeric',
-          maxlength: '8'
-        }
-      );
-
+    card.appendChild(el('div', { style: 'margin-top:14px;text-align:center' },
+      el('button', { class: 'link-btn', onclick: async () => {
+        const typedId = idInput.value.trim().toLowerCase();
+        const emp = EMPLOYEES.find(x => x.id.toLowerCase() === typedId);
+        if (!emp) { loginError = 'Enter a valid User ID first.'; render(); return; }
+        pendingEmployee = emp; loginStage = 'setpin-confirm'; loginError = ''; render();
+      } }, 'First time here? Set your PIN')
+    ));
+  } else if (loginStage === 'setpin-confirm') {
+    card.appendChild(el('label', {}, 'User ID'));
+    card.appendChild(el('div', { class: 'muted-note', style: 'margin-bottom:16px;font-size:0.9rem;color:var(--ink)' }, pendingEmployee.id + ' \u2014 ' + pendingEmployee.name));
+    card.appendChild(el('label', {}, 'New PIN'));
+    const p1 = el('input', { type: 'password', inputmode: 'numeric', maxlength: '8' });
     card.appendChild(p1);
-
-
-    card.appendChild(
-      el(
-        'label',
-        {},
-        'Confirm PIN'
-      )
-    );
-
-    const p2 =
-      el(
-        'input',
-        {
-          type: 'password',
-          inputmode: 'numeric',
-          maxlength: '8'
-        }
-      );
-
+    card.appendChild(el('label', {}, 'Confirm PIN'));
+    const p2 = el('input', { type: 'password', inputmode: 'numeric', maxlength: '8' });
     card.appendChild(p2);
-
-
-    const err =
-      el(
-        'div',
-        { class: 'error-msg' },
-        loginError
-      );
-
+    const err = el('div', { class: 'error-msg' }, loginError);
     card.appendChild(err);
-
-
-    card.appendChild(
-      el(
-        'button',
-        {
-          class: 'btn btn-primary',
-          style: 'width:100%',
-
-          onclick: async e => {
-
-            if (p1.value.length < 4) {
-
-              loginError =
-                'Use at least 4 digits.';
-
-              render();
-
-              return;
-            }
-
-            if (p1.value !== p2.value) {
-
-              loginError =
-                'PINs don’t match.';
-
-              render();
-
-              return;
-            }
-
-            e.target.disabled = true;
-
-
-            const r =
-              await api(
-                'setPin',
-                {
-                  employeeId:
-                    pendingEmployee.id,
-
-                  pin:
-                    p1.value
-                }
-              );
-
-
-            if (!r.ok) {
-
-              loginError =
-                r.error ||
-                'Couldn’t set PIN.';
-
-              render();
-
-              return;
-            }
-
-
-            current =
-              pendingEmployee;
-
-            view =
-              pendingEmployee.isMaster
-                ? 'master'
-                : 'employee';
-
-            loginStage = 'select';
-            loginError = '';
-            pendingEmployee = null;
-            loginUserIdValue = '';
-
-            await refreshTxns();
-
-            startPolling();
-
-            render();
-
-            showToast(
-              'PIN set — welcome!'
-            );
-          }
-        },
-
-        'Save PIN & sign in'
-      )
-    );
-
-
-    card.appendChild(
-      el(
-        'div',
-        {
-          style:
-            'margin-top:14px;text-align:center'
-        },
-
-        el(
-          'button',
-          {
-            class: 'link-btn',
-
-            onclick: () => {
-
-              loginStage = 'select';
-              loginError = '';
-
-              render();
-            }
-          },
-
-          'Back'
-        )
-      )
-    );
+    card.appendChild(el('button', { class: 'btn btn-primary', style: 'width:100%', onclick: async (e) => {
+      if (p1.value.length < 4) { loginError = 'Use at least 4 digits.'; render(); return; }
+      if (p1.value !== p2.value) { loginError = 'PINs don\u2019t match.'; render(); return; }
+      e.target.disabled = true;
+      const r = await api('setPin', { employeeId: pendingEmployee.id, pin: p1.value });
+      if (!r.ok) { loginError = r.error || 'Couldn\u2019t set PIN.'; render(); return; }
+      current = pendingEmployee; view = pendingEmployee.isMaster ? 'master' : 'employee'; loginStage='select'; loginError=''; pendingEmployee=null; loginUserIdValue='';
+      await refreshAll(); startPolling(); render();
+      showToast('PIN set \u2014 welcome!');
+    } }, 'Save PIN & sign in'));
+    card.appendChild(el('div', { style: 'margin-top:14px;text-align:center' }, el('button', { class: 'link-btn', onclick: () => { loginStage='select'; loginError=''; render(); } }, 'Back')));
   }
-
-
   wrap.appendChild(card);
-
   root.appendChild(wrap);
 }
 
-
-/* =====================================================================
-   CHANGE PIN MODAL
-   ===================================================================== */
-
-function openChangePin() {
-
-  changePinOpen = true;
-
-  renderChangePinModal();
-}
-
+/* ---------------- Change PIN modal ---------------- */
+function openChangePin() { changePinOpen = true; renderChangePinModal(); }
 function renderChangePinModal() {
-
   if (!changePinOpen) return;
-
-  const backdrop =
-    el(
-      'div',
-      {
-        class: 'modal-backdrop',
-
-        onclick: e => {
-
-          if (e.target === backdrop) {
-
-            changePinOpen = false;
-
-            backdrop.remove();
-          }
-        }
-      }
-    );
-
-  const card =
-    el(
-      'div',
-      { class: 'modal-card' }
-    );
-
-  card.appendChild(
-    el(
-      'h3',
-      {},
-      'Change PIN'
-    )
-  );
-
-  card.appendChild(
-    el(
-      'p',
-      { class: 'login-hint' },
-      'Enter your current PIN and a new one.'
-    )
-  );
-
-
-  card.appendChild(
-    el(
-      'label',
-      {},
-      'Current PIN'
-    )
-  );
-
-  const oldP =
-    el(
-      'input',
-      {
-        type: 'password',
-        inputmode: 'numeric'
-      }
-    );
-
-  card.appendChild(oldP);
-
-
-  card.appendChild(
-    el(
-      'label',
-      {},
-      'New PIN'
-    )
-  );
-
-  const newP =
-    el(
-      'input',
-      {
-        type: 'password',
-        inputmode: 'numeric'
-      }
-    );
-
-  card.appendChild(newP);
-
-
-  const err =
-    el(
-      'div',
-      { class: 'error-msg' },
-      ''
-    );
-
-  card.appendChild(err);
-
-
-  card.appendChild(
-    el(
-      'div',
-      { class: 'modal-actions' },
-
-      el(
-        'button',
-        {
-          class: 'btn',
-
-          onclick: () => {
-
-            changePinOpen = false;
-
-            backdrop.remove();
-          }
-        },
-
-        'Cancel'
-      ),
-
-      el(
-        'button',
-        {
-          class: 'btn btn-primary',
-
-          onclick: async () => {
-
-            const r =
-              await api(
-                'changePin',
-                {
-                  employeeId: current.id,
-                  oldPin: oldP.value.trim(),
-                  newPin: newP.value.trim()
-                }
-              );
-
-
-            if (!r.ok) {
-
-              err.textContent =
-                r.error ||
-                'Couldn’t update PIN.';
-
-              return;
-            }
-
-
-            changePinOpen = false;
-
-            backdrop.remove();
-
-            showToast(
-              'PIN updated'
-            );
-          }
-        },
-
-        'Save'
-      )
-    )
-  );
-
-
+  const backdrop = el('div', { class: 'modal-backdrop', onclick: (e) => { if (e.target === backdrop) { changePinOpen = false; backdrop.remove(); } } });
+  const card = el('div', { class: 'modal-card' });
+  card.appendChild(el('h3', {}, 'Change PIN'));
+  card.appendChild(el('p', { class: 'login-hint' }, 'Enter your current PIN and a new one.'));
+  card.appendChild(el('label', {}, 'Current PIN'));
+  const oldP = el('input', { type: 'password', inputmode: 'numeric' }); card.appendChild(oldP);
+  card.appendChild(el('label', {}, 'New PIN'));
+  const newP = el('input', { type: 'password', inputmode: 'numeric' }); card.appendChild(newP);
+  const err = el('div', { class: 'error-msg' }, ''); card.appendChild(err);
+  card.appendChild(el('div', { class: 'modal-actions' },
+    el('button', { class: 'btn', onclick: () => { changePinOpen = false; backdrop.remove(); } }, 'Cancel'),
+    el('button', { class: 'btn btn-primary', onclick: async () => {
+      const r = await api('changePin', { employeeId: current.id, oldPin: oldP.value.trim(), newPin: newP.value.trim() });
+      if (!r.ok) { err.textContent = r.error || 'Couldn\u2019t update PIN.'; return; }
+      changePinOpen = false; backdrop.remove(); showToast('PIN updated');
+    } }, 'Save')
+  ));
   backdrop.appendChild(card);
-
   document.body.appendChild(backdrop);
 }
 
-
-/* =====================================================================
-   EMPLOYEE VIEW
-   ===================================================================== */
-
-function renderEmployee() {
-
-  root.appendChild(topbar());
-
-
-  root.appendChild(
-    el(
-      'div',
-      { class: 'sync-note' },
-      'Live figures — refreshes automatically every 15 seconds.'
-    )
-  );
-
-
-  const b =
-    balanceFor(current.id);
-
-
-  root.appendChild(
-    el(
-      'div',
-      { class: 'balance-band' },
-
-      el(
-        'div',
-        {},
-
-        el(
-          'div',
-          { class: 'balance-figure-label' },
-          'Cash in hand'
-        ),
-
-        el(
-          'div',
-          { class: 'balance-figure' },
-          fmtMoney(b.balance)
-        ),
-
-        el(
-          'div',
-          { class: 'balance-sub' },
-
-          el(
-            'div',
-            { class: 'balance-sub-item' },
-
-            el(
-              'span',
-              { class: 'pill-in' },
-              'Collected: '
-            ),
-
-            el(
-              'b',
-              {},
-              fmtMoney(b.inTotal)
-            )
-          ),
-
-          el(
-            'div',
-            { class: 'balance-sub-item' },
-
-            el(
-              'span',
-              { class: 'pill-out' },
-              'Handed over: '
-            ),
-
-            el(
-              'b',
-              {},
-              fmtMoney(b.outTotal)
-            )
-          ),
-
-          el(
-            'div',
-            { class: 'balance-sub-item' },
-
-            'Entries: ',
-
-            el(
-              'b',
-              {},
-              String(b.count)
-            )
-          )
-        )
-      ),
-
-      el(
-        'button',
-        {
-          class: 'btn',
-
-          onclick: () =>
-            exportCSV(
-              current.id,
-              current.name
-            )
-        },
-
-        'Export CSV'
-      )
-    )
-  );
-
-
-  root.appendChild(
-    renderAddForm(current.id)
-  );
-
-
-  root.appendChild(
-    el(
-      'div',
-      { class: 'section-title' },
-      'My ledger'
-    )
-  );
-
-
-  root.appendChild(
-    renderLedgerTable(
-      txnsFor(current.id)
-    )
-  );
-
-
-  if (current.isMaster) {
-
-    root.appendChild(
-      el(
-        'div',
-        { style: 'margin-top:22px' },
-
-        el(
-          'button',
-          {
-            class: 'btn',
-
-            onclick: () => {
-
-              view = 'master';
-
-              render();
-            }
-          },
-
-          'Go to Master Overview →'
-        )
-      )
-    );
-  }
+/* ---------------- Shared tab bar ---------------- */
+function pendingApprovalsForMe() { return allTransfers.filter(t => t.toEmployeeId === current.id && t.status === 'pending'); }
+function tabsBar(activeKey) {
+  const pendingCount = pendingApprovalsForMe().length;
+  const tabs = [
+    { key: 'employee', label: 'My cashbook' },
+    { key: 'approvals', label: 'Approvals' + (pendingCount ? ' (' + pendingCount + ')' : '') },
+  ];
+  if (current.isMaster) tabs.push({ key: 'master', label: 'Master overview' });
+  const bar = el('div', { class: 'tabs' });
+  tabs.forEach(t => bar.appendChild(el('button', { class: 'tab-btn' + (activeKey === t.key ? ' active' : ''), onclick: () => { view = t.key; render(); } }, t.label)));
+  return bar;
 }
 
-
-/* =====================================================================
-   ADD ENTRY FORM
-   ===================================================================== */
+/* ---------------- Employee view ---------------- */
+function renderEmployee() {
+  root.appendChild(topbar());
+  root.appendChild(tabsBar('employee'));
+  root.appendChild(el('div', { class: 'sync-note' }, 'Live figures \u2014 refreshes automatically every 15 seconds.'));
+  const b = balanceFor(current.id);
+  root.appendChild(el('div', { class: 'balance-band' },
+    el('div', {},
+      el('div', { class: 'balance-figure-label' }, 'Cash in hand'),
+      el('div', { class: 'balance-figure' }, fmtMoney(b.balance)),
+      el('div', { class: 'balance-sub' },
+        el('div', { class: 'balance-sub-item' }, el('span', { class: 'pill-in' }, 'Collected: '), el('b', {}, fmtMoney(b.inTotal))),
+        el('div', { class: 'balance-sub-item' }, el('span', { class: 'pill-out' }, 'Handed over: '), el('b', {}, fmtMoney(b.outTotal))),
+        el('div', { class: 'balance-sub-item' }, 'Entries: ', el('b', {}, String(b.count)))
+      )
+    ),
+    el('button', { class: 'btn', onclick: () => exportCSV(current.id, current.name) }, 'Export CSV')
+  ));
+  root.appendChild(renderAddForm(current.id));
+  root.appendChild(el('div', { class: 'section-title' }, 'My ledger'));
+  root.appendChild(renderLedgerTable(txnsFor(current.id)));
+}
 
 function renderAddForm(employeeId) {
+  const card = el('div', { class: 'form-card' });
+  card.appendChild(el('h3', {}, 'Add entry'));
+  const inOpt = el('div', { class: 'type-opt' + (txnType === 'in' ? ' active-in' : ''), onclick: () => { txnType='in'; render(); } }, 'Collected (cash in)');
+  const outOpt = el('div', { class: 'type-opt' + (txnType === 'out' ? ' active-out' : ''), onclick: () => { txnType='out'; outTarget='external'; render(); } }, 'Handed over (cash out)');
+  card.appendChild(el('div', { class: 'type-toggle' }, inOpt, outOpt));
 
-  const card =
-    el(
-      'div',
-      { class: 'form-card' }
-    );
+  if (txnType === 'out') {
+    const extOpt = el('div', { class: 'type-opt' + (outTarget === 'external' ? ' active-out' : ''), style: 'font-size:0.8rem', onclick: () => { outTarget='external'; render(); } }, 'External party');
+    const empOpt = el('div', { class: 'type-opt' + (outTarget === 'employee' ? ' active-out' : ''), style: 'font-size:0.8rem', onclick: () => { outTarget='employee'; render(); } }, 'Employee (needs approval)');
+    card.appendChild(el('div', { class: 'type-toggle', style: 'margin-top:-8px' }, extOpt, empOpt));
+  }
 
+  const dateInput = el('input', { type: 'date', value: todayISO() });
+  const amountInput = el('input', { type: 'number', min: '0', step: '1', placeholder: '0' });
+  card.appendChild(el('div', { class: 'field-row' }, el('div', {}, el('label', {}, 'Date'), dateInput), el('div', {}, el('label', {}, 'Amount'), amountInput)));
 
-  card.appendChild(
-    el(
-      'h3',
-      {},
-      'Add entry'
-    )
-  );
+  const purposeInput = el('input', { type: 'text', list: 'purpose-list', placeholder: 'e.g. Client payment' });
+  const dl = el('datalist', { id: 'purpose-list' }); PURPOSE_SUGGESTIONS.forEach(p => dl.appendChild(el('option', { value: p })));
+  const err = el('div', { class: 'error-msg' }, '');
 
+  if (txnType === 'out' && outTarget === 'employee') {
+    const others = EMPLOYEES.filter(x => x.id !== employeeId);
+    const empSelect = el('select', {});
+    others.forEach(x => empSelect.appendChild(el('option', { value: x.id }, x.name)));
+    card.appendChild(el('label', {}, 'Send to (employee)'));
+    card.appendChild(empSelect);
+    card.appendChild(el('label', {}, 'Purpose')); card.appendChild(purposeInput); card.appendChild(dl);
+    card.appendChild(err);
+    card.appendChild(el('button', { class: 'btn btn-primary', onclick: async (e) => {
+      const amount = parseFloat(amountInput.value);
+      if (!amount || amount <= 0) { err.textContent = 'Enter an amount greater than 0.'; return; }
+      const toEmp = EMPLOYEES.find(x => x.id === empSelect.value);
+      e.target.disabled = true;
+      try {
+        const r = await api('createTransfer', { fromEmployeeId: employeeId, fromName: current.name, toEmployeeId: toEmp.id, toName: toEmp.name, date: dateInput.value || todayISO(), amount, purpose: purposeInput.value.trim() });
+        if (!r.ok) { err.textContent = r.error || 'Couldn\u2019t send \u2014 try again.'; e.target.disabled = false; return; }
+        showToast('Sent to ' + toEmp.name + ' for approval'); err.textContent = '';
+        amountInput.value = ''; purposeInput.value = '';
+        await refreshAll();
+      } catch (ex) { err.textContent = 'Couldn\u2019t reach the server.'; }
+      e.target.disabled = false;
+    } }, 'Send for approval'));
+    return card;
+  }
 
-  const inOpt =
-    el(
-      'div',
-      {
-        class:
-          'type-opt' +
-          (
-            txnType === 'in'
-              ? ' active-in'
-              : ''
-          ),
-
-        onclick: () => {
-
-          txnType = 'in';
-
-          render();
-        }
-      },
-
-      'Collected (cash in)'
-    );
-
-
-  const outOpt =
-    el(
-      'div',
-      {
-        class:
-          'type-opt' +
-          (
-            txnType === 'out'
-              ? ' active-out'
-              : ''
-          ),
-
-        onclick: () => {
-
-          txnType = 'out';
-
-          render();
-        }
-      },
-
-      'Handed over (cash out)'
-    );
-
-
-  card.appendChild(
-    el(
-      'div',
-      { class: 'type-toggle' },
-      inOpt,
-      outOpt
-    )
-  );
-
-
-  const dateInput =
-    el(
-      'input',
-      {
-        type: 'date',
-        value: todayISO()
-      }
-    );
-
-
-  const amountInput =
-    el(
-      'input',
-      {
-        type: 'number',
-        min: '0',
-        step: '1',
-        placeholder: '0'
-      }
-    );
-
-
-  card.appendChild(
-    el(
-      'div',
-      { class: 'field-row' },
-
-      el(
-        'div',
-        {},
-
-        el(
-          'label',
-          {},
-          'Date'
-        ),
-
-        dateInput
-      ),
-
-      el(
-        'div',
-        {},
-
-        el(
-          'label',
-          {},
-          'Amount'
-        ),
-
-        amountInput
-      )
-    )
-  );
-
-
-  const partyInput =
-    el(
-      'input',
-      {
-        type: 'text',
-        placeholder:
-          txnType === 'in'
-            ? 'Who gave the cash?'
-            : 'Who received the cash?'
-      }
-    );
-
-
-  card.appendChild(
-    el(
-      'label',
-      {},
-      txnType === 'in'
-        ? 'Collected from'
-        : 'Handed over to'
-    )
-  );
-
+  const partyInput = el('input', { type: 'text', placeholder: txnType === 'in' ? 'Who gave the cash?' : 'Who received the cash?' });
+  card.appendChild(el('label', {}, txnType === 'in' ? 'Collected from' : 'Handed over to'));
   card.appendChild(partyInput);
-
-
-  const purposeInput =
-    el(
-      'input',
-      {
-        type: 'text',
-        list: 'purpose-list',
-        placeholder:
-          'e.g. Client payment'
-      }
-    );
-
-
-  const dl =
-    el(
-      'datalist',
-      {
-        id: 'purpose-list'
-      }
-    );
-
-
-  PURPOSE_SUGGESTIONS.forEach(p => {
-
-    dl.appendChild(
-      el(
-        'option',
-        { value: p }
-      )
-    );
-
-  });
-
-
-  card.appendChild(
-    el(
-      'label',
-      {},
-      'Purpose'
-    )
-  );
-
-  card.appendChild(purposeInput);
-
-  card.appendChild(dl);
-
-
-  const err =
-    el(
-      'div',
-      { class: 'error-msg' },
-      ''
-    );
-
+  card.appendChild(el('label', {}, 'Purpose')); card.appendChild(purposeInput); card.appendChild(dl);
   card.appendChild(err);
-
-
-  /* ================================================================
-     ADD ENTRY BUTTON
-     ================================================================ */
-
-  card.appendChild(
-    el(
-      'button',
-      {
-        class: 'btn btn-primary',
-
-        onclick: async e => {
-
-          const amount =
-            parseFloat(
-              amountInput.value
-            );
-
-
-          if (
-            !amount ||
-            amount <= 0
-          ) {
-
-            err.textContent =
-              'Enter an amount greater than 0.';
-
-            return;
-          }
-
-
-          if (
-            !partyInput.value.trim()
-          ) {
-
-            err.textContent =
-              'Enter a name.';
-
-            return;
-          }
-
-
-          e.target.disabled = true;
-
-
-          try {
-
-            const r =
-              await api(
-                'addTransaction',
-                {
-                  employeeId,
-
-                  date:
-                    dateInput.value ||
-                    todayISO(),
-
-                  amount,
-
-                  type:
-                    txnType,
-
-                  party:
-                    partyInput.value.trim(),
-
-                  purpose:
-                    purposeInput.value.trim()
-                }
-              );
-
-
-            if (!r.ok) {
-
-              err.textContent =
-                r.error ||
-                'Couldn’t save — try again.';
-
-              e.target.disabled = false;
-
-              return;
-            }
-
-
-            /* --------------------------------------------------------
-               SUCCESS
-               -------------------------------------------------------- */
-
-            showToast(
-              'Entry added'
-            );
-
-            err.textContent = '';
-
-
-            /*
-             * Clear fields ONLY after a successful save.
-             */
-
-            dateInput.value =
-              todayISO();
-
-            amountInput.value = '';
-
-            partyInput.value = '';
-
-            purposeInput.value = '';
-
-
-            /*
-             * Refresh balance and ledger.
-             * This will NOT rebuild the Add Entry form.
-             */
-
-            await refreshTxns();
-
-
-          } catch (ex) {
-
-            err.textContent =
-              'Couldn’t reach the server.';
-
-          }
-
-
-          e.target.disabled = false;
-        }
-      },
-
-      'Add entry'
-    )
-  );
-
-
+  card.appendChild(el('button', { class: 'btn btn-primary', onclick: async (e) => {
+    const amount = parseFloat(amountInput.value);
+    if (!amount || amount <= 0) { err.textContent = 'Enter an amount greater than 0.'; return; }
+    if (!partyInput.value.trim()) { err.textContent = 'Enter a name.'; return; }
+    e.target.disabled = true;
+    try {
+      const r = await api('addTransaction', { employeeId, date: dateInput.value || todayISO(), amount, type: txnType, party: partyInput.value.trim(), purpose: purposeInput.value.trim() });
+      if (!r.ok) { err.textContent = r.error || 'Couldn\u2019t save \u2014 try again.'; e.target.disabled = false; return; }
+      showToast('Entry added'); err.textContent = '';
+      amountInput.value = ''; partyInput.value = ''; purposeInput.value = '';
+      await refreshAll();
+    } catch (ex) { err.textContent = 'Couldn\u2019t reach the server.'; }
+    e.target.disabled = false;
+  } }, 'Add entry'));
   return card;
 }
 
-
-/* =====================================================================
-   LEDGER TABLE
-   ===================================================================== */
-
 function renderLedgerTable(list) {
-
-  const wrap =
-    el(
-      'div',
-      { class: 'ledger-wrap' }
-    );
-
-  const table =
-    el(
-      'table',
-      { class: 'ledger' }
-    );
-
-
-  table.appendChild(
-    el(
-      'thead',
-      {},
-
-      el(
-        'tr',
-        {},
-
-        el('th', {}, '#'),
-        el('th', {}, 'Date'),
-        el('th', {}, 'Amount'),
-        el('th', {}, 'Collected from'),
-        el('th', {}, 'Handover to'),
-        el('th', {}, 'Purpose')
-      )
-    )
-  );
-
-
-  const tbody =
-    el(
-      'tbody',
-      {}
-    );
-
-
+  const wrap = el('div', { class: 'ledger-wrap' });
+  const table = el('table', { class: 'ledger' });
+  table.appendChild(el('thead', {}, el('tr', {}, el('th', {}, '#'), el('th', {}, 'Date'), el('th', {}, 'Amount'), el('th', {}, 'Collected from'), el('th', {}, 'Handover to'), el('th', {}, 'Purpose'))));
+  const tbody = el('tbody', {});
   if (!list.length) {
-
-    tbody.appendChild(
-      el(
-        'tr',
-        { class: 'empty-row' },
-
-        el(
-          'td',
-          { colspan: '6' },
-          'No entries yet.'
-        )
-      )
-    );
-
+    tbody.appendChild(el('tr', { class: 'empty-row' }, el('td', { colspan: '6' }, 'No entries yet.')));
   } else {
-
-    [...list]
-      .sort(
-        (a, b) =>
-          (b.number || 0) -
-          (a.number || 0)
-      )
-      .forEach(t => {
-
-        tbody.appendChild(
-          el(
-            'tr',
-            {},
-
-            el(
-              'td',
-              { class: 'num' },
-              String(t.number)
-            ),
-
-            el(
-              'td',
-              {},
-              fmtDate(t.date)
-            ),
-
-            el(
-              'td',
-              {
-                class:
-                  t.type === 'in'
-                    ? 'amt-in'
-                    : 'amt-out'
-              },
-
-              (
-                t.type === 'in'
-                  ? '+'
-                  : '−'
-              ) +
-              fmtMoney(t.amount)
-            ),
-
-            el(
-              'td',
-              {},
-
-              t.collectedFrom
-                ? t.collectedFrom
-                : el(
-                    'span',
-                    { class: 'dash' },
-                    '—'
-                  )
-            ),
-
-            el(
-              'td',
-              {},
-
-              t.handoverTo
-                ? t.handoverTo
-                : el(
-                    'span',
-                    { class: 'dash' },
-                    '—'
-                  )
-            ),
-
-            el(
-              'td',
-              {},
-
-              t.purpose
-                ? t.purpose
-                : el(
-                    'span',
-                    { class: 'dash' },
-                    '—'
-                  )
-            )
-          )
-        );
-
-      });
+    [...list].sort((a,b) => (b.number||0)-(a.number||0)).forEach(t => {
+      tbody.appendChild(el('tr', {},
+        el('td', { class: 'num' }, String(t.number)),
+        el('td', {}, fmtDate(t.date)),
+        el('td', { class: t.type === 'in' ? 'amt-in' : 'amt-out' }, (t.type === 'in' ? '+' : '\u2212') + fmtMoney(t.amount)),
+        el('td', {}, t.collectedFrom ? t.collectedFrom : el('span', { class: 'dash' }, '\u2014')),
+        el('td', {}, t.handoverTo ? t.handoverTo : el('span', { class: 'dash' }, '\u2014')),
+        el('td', {}, t.purpose || el('span', { class: 'dash' }, '\u2014'))
+      ));
+    });
   }
-
-
-  table.appendChild(tbody);
-
-  wrap.appendChild(table);
-
-  return wrap;
+  table.appendChild(tbody); wrap.appendChild(table); return wrap;
 }
 
-
-/* =====================================================================
-   MASTER OVERVIEW
-   ===================================================================== */
-
+/* ---------------- Master overview ---------------- */
 function renderMaster() {
-
   root.appendChild(topbar());
-
-
-  root.appendChild(
-    el(
-      'div',
-      { class: 'sync-note' },
-      'Live figures — refreshes automatically every 15 seconds.'
-    )
-  );
-
-
-  root.appendChild(
-    el(
-      'div',
-      { class: 'tabs' },
-
-      el(
-        'button',
-        {
-          class: 'tab-btn',
-
-          onclick: () => {
-
-            view = 'employee';
-
-            render();
-          }
-        },
-
-        'My cashbook'
-      ),
-
-      el(
-        'button',
-        {
-          class:
-            'tab-btn active'
-        },
-
-        'Master overview'
-      )
-    )
-  );
-
-
-  const grand =
-    EMPLOYEES.reduce(
-      (acc, e) => {
-
-        const b =
-          balanceFor(e.id);
-
-        acc.balance += b.balance;
-        acc.in += b.inTotal;
-        acc.out += b.outTotal;
-
-        return acc;
-
-      },
-      {
-        balance: 0,
-        in: 0,
-        out: 0
-      }
-    );
-
-
-  root.appendChild(
-    el(
-      'div',
-      { class: 'totals-strip' },
-
-      el(
-        'div',
-        {},
-
-        'Total cash in hand (all staff)',
-
-        el('br'),
-
-        el(
-          'b',
-          {},
-          fmtMoney(grand.balance)
-        )
-      ),
-
-      el(
-        'div',
-        {},
-
-        'Total collected',
-
-        el('br'),
-
-        el(
-          'b',
-          {},
-          fmtMoney(grand.in)
-        )
-      ),
-
-      el(
-        'div',
-        {},
-
-        'Total handed over',
-
-        el('br'),
-
-        el(
-          'b',
-          {},
-          fmtMoney(grand.out)
-        )
-      )
-    )
-  );
-
-
-  root.appendChild(
-    el(
-      'div',
-      { class: 'row-between' },
-
-      el(
-        'div',
-        { class: 'section-title' },
-        'By employee'
-      )
-    )
-  );
-
-
-  const grid =
-    el(
-      'div',
-      { class: 'overview-grid' }
-    );
-
-
+  root.appendChild(tabsBar('master'));
+  root.appendChild(el('div', { class: 'sync-note' }, 'Live figures \u2014 refreshes automatically every 15 seconds.'));
+  const grand = EMPLOYEES.reduce((acc, e) => { const b = balanceFor(e.id); acc.balance += b.balance; acc.in += b.inTotal; acc.out += b.outTotal; return acc; }, { balance: 0, in: 0, out: 0 });
+  root.appendChild(el('div', { class: 'totals-strip' },
+    el('div', {}, 'Total cash in hand (all staff)', el('br'), el('b', {}, fmtMoney(grand.balance))),
+    el('div', {}, 'Total collected', el('br'), el('b', {}, fmtMoney(grand.in))),
+    el('div', {}, 'Total handed over', el('br'), el('b', {}, fmtMoney(grand.out)))
+  ));
+  root.appendChild(el('div', { class: 'row-between' }, el('div', { class: 'section-title' }, 'By employee')));
+  const grid = el('div', { class: 'overview-grid' });
   EMPLOYEES.forEach(e => {
-
-    const b =
-      balanceFor(e.id);
-
-
-    grid.appendChild(
-      el(
-        'button',
-        {
-          class: 'emp-card',
-
-          onclick: () => {
-
-            masterFocusId = e.id;
-
-            view =
-              'ledger-detail';
-
-            render();
-          }
-        },
-
-        el(
-          'div',
-          { class: 'emp-card-name' },
-
-          e.name +
-          (
-            e.isMaster
-              ? ' · Master'
-              : ''
-          )
-        ),
-
-        el(
-          'div',
-          { class: 'emp-card-balance' },
-          fmtMoney(b.balance)
-        ),
-
-        el(
-          'div',
-          { class: 'emp-card-meta' },
-
-          b.count +
-          ' entries · in ' +
-          fmtMoney(b.inTotal) +
-          ' / out ' +
-          fmtMoney(b.outTotal)
-        )
-      )
-    );
-
+    const b = balanceFor(e.id);
+    grid.appendChild(el('button', { class: 'emp-card', onclick: () => { masterFocusId = e.id; view='ledger-detail'; render(); } },
+      el('div', { class: 'emp-card-name' }, e.name + (e.isMaster ? ' \u00b7 Master' : '')),
+      el('div', { class: 'emp-card-balance' }, fmtMoney(b.balance)),
+      el('div', { class: 'emp-card-meta' }, b.count + ' entries \u00b7 in ' + fmtMoney(b.inTotal) + ' / out ' + fmtMoney(b.outTotal))
+    ));
   });
-
-
   root.appendChild(grid);
 }
-
-
-/* =====================================================================
-   MASTER LEDGER DETAIL
-   ===================================================================== */
-
 function renderLedgerDetail() {
-
   root.appendChild(topbar());
-
-
-  const emp =
-    EMPLOYEES.find(
-      e => e.id === masterFocusId
-    );
-
-
-  root.appendChild(
-    el(
-      'button',
-      {
-        class: 'back-link',
-
-        onclick: () => {
-
-          view = 'master';
-
-          render();
-        }
-      },
-
-      '← Back to overview'
-    )
-  );
-
-
-  const b =
-    balanceFor(emp.id);
-
-
-  root.appendChild(
-    el(
-      'div',
-      { class: 'balance-band' },
-
-      el(
-        'div',
-        {},
-
-        el(
-          'div',
-          { class: 'balance-figure-label' },
-
-          emp.name +
-          '’s cash in hand'
-        ),
-
-        el(
-          'div',
-          { class: 'balance-figure' },
-          fmtMoney(b.balance)
-        ),
-
-        el(
-          'div',
-          { class: 'balance-sub' },
-
-          el(
-            'div',
-            { class: 'balance-sub-item' },
-
-            el(
-              'span',
-              { class: 'pill-in' },
-              'Collected: '
-            ),
-
-            el(
-              'b',
-              {},
-              fmtMoney(b.inTotal)
-            )
-          ),
-
-          el(
-            'div',
-            { class: 'balance-sub-item' },
-
-            el(
-              'span',
-              { class: 'pill-out' },
-              'Handed over: '
-            ),
-
-            el(
-              'b',
-              {},
-              fmtMoney(b.outTotal)
-            )
-          ),
-
-          el(
-            'div',
-            { class: 'balance-sub-item' },
-
-            'Entries: ',
-
-            el(
-              'b',
-              {},
-              String(b.count)
-            )
-          )
-        )
-      ),
-
-      el(
-        'button',
-        {
-          class: 'btn',
-
-          onclick: () =>
-            exportCSV(
-              emp.id,
-              emp.name
-            )
-        },
-
-        'Export CSV'
+  const emp = EMPLOYEES.find(e => e.id === masterFocusId);
+  root.appendChild(el('button', { class: 'back-link', onclick: () => { view='master'; render(); } }, '\u2190 Back to overview'));
+  const b = balanceFor(emp.id);
+  root.appendChild(el('div', { class: 'balance-band' },
+    el('div', {},
+      el('div', { class: 'balance-figure-label' }, emp.name + '\u2019s cash in hand'),
+      el('div', { class: 'balance-figure' }, fmtMoney(b.balance)),
+      el('div', { class: 'balance-sub' },
+        el('div', { class: 'balance-sub-item' }, el('span', { class: 'pill-in' }, 'Collected: '), el('b', {}, fmtMoney(b.inTotal))),
+        el('div', { class: 'balance-sub-item' }, el('span', { class: 'pill-out' }, 'Handed over: '), el('b', {}, fmtMoney(b.outTotal))),
+        el('div', { class: 'balance-sub-item' }, 'Entries: ', el('b', {}, String(b.count)))
       )
-    )
-  );
-
-
-  root.appendChild(
-    el(
-      'div',
-      { class: 'section-title' },
-      'Full ledger (read-only)'
-    )
-  );
-
-
-  root.appendChild(
-    renderLedgerTable(
-      txnsFor(emp.id)
-    )
-  );
+    ),
+    el('button', { class: 'btn', onclick: () => exportCSV(emp.id, emp.name) }, 'Export CSV')
+  ));
+  root.appendChild(el('div', { class: 'section-title' }, 'Full ledger (read-only)'));
+  root.appendChild(renderLedgerTable(txnsFor(emp.id)));
 }
 
+/* ---------------- Approvals ---------------- */
+function statusBadge(status) {
+  const color = status === 'approved' ? 'var(--credit)' : status === 'rejected' ? 'var(--debit)' : 'var(--gold)';
+  const label = status.charAt(0).toUpperCase() + status.slice(1);
+  return el('span', { style: 'color:' + color + ';font-weight:600;font-size:0.82rem' }, label);
+}
+function transferRow(t, showActions) {
+  const wrap = el('div', { style: 'display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid var(--rule);flex-wrap:wrap' });
+  const left = el('div', {},
+    el('div', { style: 'font-weight:600;font-size:0.92rem' }, t.fromName + ' \u2192 ' + t.toName),
+    el('div', { style: 'font-size:0.8rem;color:var(--ink-soft);margin-top:2px' }, fmtDate(t.date) + (t.purpose ? ' \u00b7 ' + t.purpose : ''))
+  );
+  const right = el('div', { style: 'display:flex;align-items:center;gap:14px' },
+    el('div', { style: 'font-family:var(--font-serif);font-weight:600;font-size:1.05rem' }, fmtMoney(t.amount))
+  );
+  if (showActions) {
+    right.appendChild(el('button', { class: 'btn btn-small', style: 'border-color:var(--credit);color:var(--credit)', onclick: async (e) => {
+      e.target.disabled = true;
+      const r = await api('decideTransfer', { transferId: t.id, actingEmployeeId: current.id, decision: 'approved' });
+      if (!r.ok) { showToast(r.error || 'Couldn\u2019t approve'); e.target.disabled = false; return; }
+      showToast('Approved'); await refreshAll();
+    } }, 'Approve'));
+    right.appendChild(el('button', { class: 'btn btn-small', style: 'border-color:var(--debit);color:var(--debit)', onclick: async (e) => {
+      e.target.disabled = true;
+      const r = await api('decideTransfer', { transferId: t.id, actingEmployeeId: current.id, decision: 'rejected' });
+      if (!r.ok) { showToast(r.error || 'Couldn\u2019t reject'); e.target.disabled = false; return; }
+      showToast('Rejected'); await refreshAll();
+    } }, 'Reject'));
+  } else {
+    right.appendChild(statusBadge(t.status));
+  }
+  wrap.appendChild(left); wrap.appendChild(right);
+  return wrap;
+}
+function renderApprovals() {
+  root.appendChild(topbar());
+  root.appendChild(tabsBar('approvals'));
+  root.appendChild(el('div', { class: 'sync-note' }, 'Live figures \u2014 refreshes automatically every 15 seconds.'));
 
-/* =====================================================================
-   BOOT
-   ===================================================================== */
+  const incoming = allTransfers.filter(t => t.toEmployeeId === current.id && t.status === 'pending').sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
+  const sent = allTransfers.filter(t => t.fromEmployeeId === current.id).sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
 
+  root.appendChild(el('div', { class: 'section-title' }, 'Waiting for your approval'));
+  const incCard = el('div', { class: 'form-card' });
+  if (!incoming.length) incCard.appendChild(el('div', { style: 'color:var(--ink-soft);font-size:0.88rem' }, 'Nothing waiting on you right now.'));
+  else incoming.forEach(t => incCard.appendChild(transferRow(t, true)));
+  root.appendChild(incCard);
+
+  root.appendChild(el('div', { class: 'section-title' }, 'Sent by you'));
+  const sentCard = el('div', { class: 'form-card' });
+  if (!sent.length) sentCard.appendChild(el('div', { style: 'color:var(--ink-soft);font-size:0.88rem' }, 'You haven\u2019t sent any employee-to-employee entries yet.'));
+  else sent.forEach(t => sentCard.appendChild(transferRow(t, false)));
+  root.appendChild(sentCard);
+
+  if (current.isMaster) {
+    root.appendChild(el('div', { class: 'section-title' }, 'All transfers (oversight)'));
+    const allCard = el('div', { class: 'form-card' });
+    const allSorted = [...allTransfers].sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
+    if (!allSorted.length) allCard.appendChild(el('div', { style: 'color:var(--ink-soft);font-size:0.88rem' }, 'No employee-to-employee entries yet.'));
+    else allSorted.forEach(t => allCard.appendChild(transferRow(t, false)));
+    root.appendChild(allCard);
+  }
+}
+
+/* ---------------- Boot ---------------- */
 render();
-
 </script>
-```
-
 </body>
 </html>

@@ -42,7 +42,6 @@
   .wrap { max-width: 1040px; margin: 0 auto; padding: 24px 18px 72px; position: relative; z-index: 1; }
   @keyframes viewFadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
   @keyframes cardEnter { from { opacity: 0; transform: translateY(10px) scale(0.97); } to { opacity: 1; transform: none; } }
-  @keyframes rotateBorder { to { transform: rotate(360deg); } }
   @keyframes skeletonShimmer { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
   .skeleton { background: linear-gradient(100deg, var(--rule) 25%, var(--rule-strong) 45%, var(--rule) 65%); background-size: 300% 100%; animation: skeletonShimmer 1.3s ease infinite; border-radius: var(--radius-s); }
   @keyframes confettiFall { to { transform: translate(var(--tx), var(--ty)) rotate(var(--rot)); opacity: 0; } }
@@ -77,63 +76,7 @@
   .error-msg { color: var(--danger); font-size: 0.92rem; margin: -10px 0 16px; min-height: 1em; }
   .muted-note { color: var(--ink-soft); font-size: 0.88rem; margin-top: 4px; }
   .link-btn { background: none; border: none; color: var(--navy); font-size: 0.9rem; cursor: pointer; padding: 0; text-decoration: underline; }
-  .balance-band {
-    position: relative;
-    isolation: isolate;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 18px;
-    background: linear-gradient(160deg, var(--paper-raised), var(--paper));
-    border: 1px solid var(--rule);
-    border-radius: var(--radius-l);
-    padding: 26px 28px;
-    margin-bottom: 26px;
-    box-shadow: 0 10px 24px rgba(23,81,143,0.06);
-    z-index: 0;
-  }
-
-  /*
-    FIX: the old conic-gradient pseudo-element filled the entire card and
-    rotated as a rectangle. That made the gradient itself appear as a large
-    diagonal stripe across the page.
-
-    The new pseudo-element is a gradient "ring" only. CSS masking removes its
-    center, so rotation is confined to the 1px border and can never spill
-    across the balance card.
-  */
-  .balance-band::before {
-    content: '';
-    position: absolute;
-    inset: -1px;
-    padding: 1px;
-    border-radius: inherit;
-    z-index: -1;
-    pointer-events: none;
-    opacity: 0.72;
-    background: conic-gradient(
-      from 0deg,
-      var(--navy),
-      var(--gold),
-      var(--credit),
-      var(--navy-soft),
-      var(--navy)
-    );
-    -webkit-mask:
-      linear-gradient(#000 0 0) content-box,
-      linear-gradient(#000 0 0);
-    -webkit-mask-composite: xor;
-    mask:
-      linear-gradient(#000 0 0) content-box,
-      linear-gradient(#000 0 0);
-    mask-composite: exclude;
-    animation: rotateBorder 7s linear infinite;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .balance-band::before { animation: none; }
-  }
+  .balance-band { position: relative; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 18px; background: linear-gradient(160deg, var(--paper-raised), var(--paper)); border: 1px solid var(--rule); border-radius: var(--radius-l); padding: 26px 28px; margin-bottom: 26px; box-shadow: 0 10px 24px rgba(23,81,143,0.06); }
   .balance-figure-label { font-size: 0.88rem; color: var(--ink-soft); margin-bottom: 5px; }
   .balance-figure { font-family: var(--font-serif); font-size: 3rem; font-weight: 600; background: linear-gradient(135deg, var(--navy), var(--navy-soft)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; line-height: 1; }
   .balance-sub { display: flex; gap: 12px; margin-top: 14px; flex-wrap: wrap; align-items: center; }

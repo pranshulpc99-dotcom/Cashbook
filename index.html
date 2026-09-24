@@ -38,8 +38,15 @@
   @keyframes blobDrift2 { 0% { transform: translate(0,0) scale(1); } 50% { transform: translate(-80px,-60px) scale(1.1); } 100% { transform: translate(-30px,50px) scale(0.92); } }
   @keyframes blobDrift3 { 0% { transform: translate(0,0) scale(1); } 50% { transform: translate(-60px,80px) scale(1.2); } 100% { transform: translate(40px,30px) scale(0.9); } }
   @media (prefers-reduced-motion: reduce) { .bg-blob { animation: none !important; } }
+  .bg-grain { position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: 0.045; mix-blend-mode: overlay; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>"); }
   .wrap { max-width: 1040px; margin: 0 auto; padding: 24px 18px 72px; position: relative; z-index: 1; }
   @keyframes viewFadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  @keyframes cardEnter { from { opacity: 0; transform: translateY(10px) scale(0.97); } to { opacity: 1; transform: none; } }
+  @keyframes rotateBorder { to { transform: rotate(360deg); } }
+  @keyframes skeletonShimmer { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
+  .skeleton { background: linear-gradient(100deg, var(--rule) 25%, var(--rule-strong) 45%, var(--rule) 65%); background-size: 300% 100%; animation: skeletonShimmer 1.3s ease infinite; border-radius: var(--radius-s); }
+  @keyframes confettiFall { to { transform: translate(var(--tx), var(--ty)) rotate(var(--rot)); opacity: 0; } }
+  .confetti-piece { position: fixed; width: 7px; height: 7px; pointer-events: none; z-index: 70; animation: confettiFall .9s cubic-bezier(.2,.7,.4,1) forwards; }
   .topbar { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding-bottom: 18px; margin-bottom: 24px; border-bottom: 4px solid transparent; border-image: linear-gradient(90deg, var(--gold), var(--navy) 45%, var(--gold)) 1; }
   .brand { display: flex; flex-direction: column; gap: 2px; }
   .brand-name { font-family: var(--font-serif); font-size: 1.75rem; font-weight: 600; color: var(--navy); }
@@ -70,7 +77,9 @@
   .error-msg { color: var(--danger); font-size: 0.92rem; margin: -10px 0 16px; min-height: 1em; }
   .muted-note { color: var(--ink-soft); font-size: 0.88rem; margin-top: 4px; }
   .link-btn { background: none; border: none; color: var(--navy); font-size: 0.9rem; cursor: pointer; padding: 0; text-decoration: underline; }
-  .balance-band { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 18px; background: linear-gradient(160deg, var(--paper-raised), var(--paper)); border: 1px solid var(--rule); border-radius: var(--radius-l); padding: 26px 28px; margin-bottom: 26px; box-shadow: 0 10px 24px rgba(23,81,143,0.06); }
+  .balance-band { position: relative; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 18px; background: linear-gradient(160deg, var(--paper-raised), var(--paper)); border: 1px solid var(--rule); border-radius: var(--radius-l); padding: 26px 28px; margin-bottom: 26px; box-shadow: 0 10px 24px rgba(23,81,143,0.06); z-index: 0; }
+  .balance-band::before { content: ''; position: absolute; inset: -3px; border-radius: inherit; z-index: -1; opacity: 0.5; filter: blur(1.5px); background: conic-gradient(var(--navy), var(--gold), var(--credit), var(--navy-soft), var(--navy)); animation: rotateBorder 7s linear infinite; }
+  @media (prefers-reduced-motion: reduce) { .balance-band::before { animation: none; } }
   .balance-figure-label { font-size: 0.88rem; color: var(--ink-soft); margin-bottom: 5px; }
   .balance-figure { font-family: var(--font-serif); font-size: 3rem; font-weight: 600; background: linear-gradient(135deg, var(--navy), var(--navy-soft)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; line-height: 1; }
   .balance-sub { display: flex; gap: 12px; margin-top: 14px; flex-wrap: wrap; align-items: center; }
@@ -79,7 +88,8 @@
   .glass-in { background: rgba(31,111,99,0.16); backdrop-filter: blur(14px) saturate(160%); -webkit-backdrop-filter: blur(14px) saturate(160%); border: 1px solid rgba(31,111,99,0.35); }
   .glass-out { background: rgba(198,55,63,0.14); backdrop-filter: blur(14px) saturate(160%); -webkit-backdrop-filter: blur(14px) saturate(160%); border: 1px solid rgba(198,55,63,0.35); }
   .pill-in { color: var(--credit); } .pill-out { color: var(--debit); }
-  .tabs { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 1px solid var(--rule); }
+  .tabs { position: relative; display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 1px solid var(--rule); }
+  .tab-pill { position: absolute; bottom: -1px; height: 3px; background: linear-gradient(90deg, var(--gold), var(--navy)); border-radius: 3px; transition: left .32s cubic-bezier(.4,0,.2,1), width .32s cubic-bezier(.4,0,.2,1); }
   .tab-btn { font-family: var(--font-sans); font-size: 1rem; font-weight: 600; color: var(--ink-soft); background: none; border: none; padding: 12px 4px; margin-right: 24px; cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -1px; }
   .tab-btn.active { color: var(--navy); border-bottom-color: var(--navy); }
   .tab-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 999px; background: linear-gradient(135deg, var(--debit), #a92c33); color: #fff; font-size: 0.78rem; font-weight: 700; margin-left: 8px; vertical-align: middle; line-height: 1; box-shadow: 0 2px 6px rgba(198,55,63,0.35); }
@@ -107,9 +117,9 @@
   table.ledger td.amt-out .glass-chip { color: var(--debit); font-weight: 600; }
   .dash { color: var(--rule-strong); }
   .empty-row td { text-align: center; color: var(--ink-soft); padding: 32px; }
-  .overview-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 16px; margin-bottom: 28px; }
-  .emp-card { background: linear-gradient(160deg, var(--paper-raised), var(--paper)); border: 1px solid var(--rule); border-radius: var(--radius-l); padding: 20px 22px; cursor: pointer; text-align: left; font-family: var(--font-sans); transition: transform .12s ease, box-shadow .12s ease; box-shadow: 0 6px 16px rgba(23,81,143,0.05); }
-  .emp-card:hover { border-color: var(--navy); transform: translateY(-2px); box-shadow: 0 10px 22px rgba(23,81,143,0.12); }
+  .overview-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 16px; margin-bottom: 28px; perspective: 900px; }
+  .emp-card { position: relative; background: linear-gradient(160deg, var(--paper-raised), var(--paper)); border: 1px solid var(--rule); border-radius: var(--radius-l); padding: 20px 22px; cursor: pointer; text-align: left; font-family: var(--font-sans); transition: transform .1s ease-out, box-shadow .15s ease, border-color .15s ease; box-shadow: 0 6px 16px rgba(23,81,143,0.05); transform-style: preserve-3d; will-change: transform; }
+  .emp-card:hover { border-color: var(--navy); box-shadow: 0 14px 30px rgba(23,81,143,0.16); }
   .emp-card-top { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
   .emp-card-name { font-weight: 600; font-size: 1.02rem; color: var(--ink); }
   .emp-card-balance { font-family: var(--font-serif); font-size: 1.65rem; font-weight: 600; color: var(--navy); }
@@ -136,6 +146,7 @@
 <div class="bg-blob b1"></div>
 <div class="bg-blob b2"></div>
 <div class="bg-blob b3"></div>
+<div class="bg-grain"></div>
 <div id="app" class="wrap"></div>
 <footer class="app-footer">Cash counted, journeys uncounted.</footer>
 <div id="toast" class="toast"></div>
@@ -174,6 +185,9 @@ let pollTimer = null, fastPollTimer = null, changePinOpen = false, outTarget = '
 let token = null;
 let lastRenderedBalance = {};
 let seenIncomingIds = null;
+let isLoadingData = false;
+let currentViewChanged = false;
+let lastTabPillPos = {};
 
 const root = document.getElementById('app');
 const toastEl = document.getElementById('toast');
@@ -238,8 +252,9 @@ async function refreshAll() {
     const [txr, trr] = await Promise.all([api('listTransactions'), api('listTransfers')]);
     if (txr && txr.ok) allTxns = txr.transactions || [];
     if (trr && trr.ok) { allTransfers = trr.transfers || []; checkForNewIncoming(); }
+    isLoadingData = false;
     if (!isUserTyping()) render();
-  } catch (e) { /* silent — keep last known data */ }
+  } catch (e) { isLoadingData = false; /* silent — keep last known data */ }
 }
 async function refreshTransfersOnly() {
   try {
@@ -279,6 +294,97 @@ function animateBalanceInto(spanEl, employeeId, toVal) {
     if (t < 1) requestAnimationFrame(step); else spanEl.textContent = fmtMoney(toVal);
   }
   requestAnimationFrame(step);
+}
+
+/* ---------------- Skeleton loading ---------------- */
+function skeletonLine(width, height) {
+  return el('div', { class: 'skeleton', style: 'width:' + width + ';height:' + (height || '16px') + ';margin-bottom:8px;' });
+}
+function skeletonBalanceBand() {
+  return el('div', { class: 'balance-band' },
+    el('div', { style: 'width:100%' }, skeletonLine('40%', '14px'), skeletonLine('55%', '44px'), skeletonLine('70%', '14px')),
+  );
+}
+function skeletonEmpCard() {
+  return el('div', { class: 'emp-card', style: 'cursor:default' },
+    el('div', { class: 'emp-card-top' }, el('div', { class: 'skeleton', style: 'width:36px;height:36px;border-radius:50%' }), skeletonLine('60%')),
+    skeletonLine('50%', '28px'), skeletonLine('80%', '12px')
+  );
+}
+
+/* ---------------- Confetti ---------------- */
+function burstConfetti(originEl) {
+  const rect = originEl.getBoundingClientRect();
+  const cx = rect.left + rect.width / 2, cy = rect.top + rect.height / 2;
+  const colors = ['var(--credit)', 'var(--gold)', 'var(--navy)', 'var(--navy-soft)'];
+  for (let i = 0; i < 18; i++) {
+    const piece = document.createElement('div');
+    piece.className = 'confetti-piece';
+    const angle = Math.random() * Math.PI * 2, dist = 60 + Math.random() * 70;
+    piece.style.left = cx + 'px'; piece.style.top = cy + 'px';
+    piece.style.background = colors[i % colors.length];
+    piece.style.borderRadius = Math.random() > 0.5 ? '50%' : '2px';
+    piece.style.setProperty('--tx', Math.cos(angle) * dist + 'px');
+    piece.style.setProperty('--ty', Math.sin(angle) * dist + 'px');
+    piece.style.setProperty('--rot', (Math.random() * 400 - 200) + 'deg');
+    document.body.appendChild(piece);
+    setTimeout(() => piece.remove(), 950);
+  }
+}
+
+/* ---------------- Donut ring (collected vs handed over) ---------------- */
+function buildDonutSVG(inTotal, outTotal, size) {
+  size = size || 44;
+  const total = inTotal + outTotal;
+  const r = size / 2 - 5, c = 2 * Math.PI * r, cx = size / 2, cy = size / 2;
+  if (total <= 0) {
+    return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '"><circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" style="stroke:var(--rule-strong)" stroke-width="5"/></svg>';
+  }
+  const inFrac = inTotal / total;
+  const inLen = c * inFrac, outLen = c - inLen;
+  return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '">' +
+    '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" style="stroke:var(--debit)" stroke-width="5" stroke-dasharray="' + c + '" stroke-dashoffset="0" transform="rotate(-90 ' + cx + ' ' + cy + ')" opacity="0.85"/>' +
+    '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" style="stroke:var(--credit)" stroke-width="5" stroke-dasharray="' + inLen + ' ' + outLen + '" stroke-dashoffset="0" transform="rotate(-90 ' + cx + ' ' + cy + ')" stroke-linecap="round"/>' +
+    '</svg>';
+}
+
+/* ---------------- Live comma-formatted amount input ---------------- */
+function attachAmountFormatting(input) {
+  input.addEventListener('input', () => {
+    const raw = input.value.replace(/[^\d]/g, '');
+    input.value = raw ? Number(raw).toLocaleString('en-IN') : '';
+  });
+}
+function parseAmountInput(input) { return parseFloat(input.value.replace(/,/g, '')) || 0; }
+
+/* ---------------- 3D tilt on cards ---------------- */
+document.addEventListener('pointermove', (e) => {
+  const card = e.target.closest('.emp-card');
+  document.querySelectorAll('.emp-card').forEach(c => { if (c !== card) c.style.transform = ''; });
+  if (!card) return;
+  const rect = card.getBoundingClientRect();
+  const px = (e.clientX - rect.left) / rect.width, py = (e.clientY - rect.top) / rect.height;
+  const rotY = (px - 0.5) * 14, rotX = (0.5 - py) * 14;
+  card.style.transform = 'perspective(900px) rotateX(' + rotX + 'deg) rotateY(' + rotY + 'deg) scale(1.015)';
+});
+document.addEventListener('pointerleave', (e) => {
+  if (e.target && e.target.closest) { const c = e.target.closest('.emp-card'); if (c) c.style.transform = ''; }
+}, true);
+
+/* ---------------- Sliding tab pill ---------------- */
+function appendTabs(container, activeKey) {
+  const bar = tabsBar(activeKey);
+  container.appendChild(bar);
+  const activeBtn = [...bar.querySelectorAll('.tab-btn')].find(b => b.classList.contains('active'));
+  if (!activeBtn) return;
+  const pill = el('div', { class: 'tab-pill' });
+  const targetLeft = activeBtn.offsetLeft, targetWidth = activeBtn.offsetWidth;
+  const prev = lastTabPillPos[current ? current.id : 'x'];
+  if (prev) { pill.style.left = prev.left + 'px'; pill.style.width = prev.width + 'px'; }
+  else { pill.style.left = targetLeft + 'px'; pill.style.width = targetWidth + 'px'; }
+  bar.appendChild(pill);
+  requestAnimationFrame(() => { pill.style.left = targetLeft + 'px'; pill.style.width = targetWidth + 'px'; });
+  lastTabPillPos[current ? current.id : 'x'] = { left: targetLeft, width: targetWidth };
 }
 
 /* ---------------- CSV / PDF export ---------------- */
@@ -335,17 +441,37 @@ function buildTrendChartSVG(txns) {
     return { label: d.toLocaleDateString('en-IN', { weekday: 'short' }), inSum, outSum };
   });
   const max = Math.max(1, ...perDay.map(d => Math.max(d.inSum, d.outSum)));
-  const w = 560, h = 170, gap = 76, baseY = h - 28;
-  let bars = '';
+  const w = 560, h = 190, baseY = 95, step = (w - 48) / 6;
+  const xs = perDay.map((d, i) => 24 + i * step);
+  const inYs = perDay.map(d => baseY - Math.round((d.inSum / max) * 78));
+  const outYs = perDay.map(d => baseY + Math.round((d.outSum / max) * 78));
+
+  const inPath = 'M ' + xs[0] + ',' + baseY + ' ' + xs.map((x,i) => 'L ' + x + ',' + inYs[i]).join(' ') + ' L ' + xs[6] + ',' + baseY + ' Z';
+  const outPath = 'M ' + xs[0] + ',' + baseY + ' ' + xs.map((x,i) => 'L ' + x + ',' + outYs[i]).join(' ') + ' L ' + xs[6] + ',' + baseY + ' Z';
+  const inLine = xs.map((x,i) => (i===0?'M ':'L ') + x + ',' + inYs[i]).join(' ');
+  const outLine = xs.map((x,i) => (i===0?'M ':'L ') + x + ',' + outYs[i]).join(' ');
+
+  let hitAreas = '';
   perDay.forEach((d, i) => {
-    const x = 24 + i * gap;
-    const inH = Math.round((d.inSum / max) * 110), outH = Math.round((d.outSum / max) * 110);
-    bars += '<rect x="' + x + '" y="' + (baseY - inH) + '" width="16" height="' + inH + '" rx="4" style="fill:var(--credit)" opacity="0.85"/>';
-    bars += '<rect x="' + (x + 20) + '" y="' + (baseY - outH) + '" width="16" height="' + outH + '" rx="4" style="fill:var(--debit)" opacity="0.85"/>';
-    bars += '<text x="' + (x + 18) + '" y="' + (baseY + 18) + '" font-size="11" style="fill:var(--ink-soft)" text-anchor="middle" font-family="Work Sans, sans-serif">' + d.label + '</text>';
+    hitAreas += '<circle cx="' + xs[i] + '" cy="' + inYs[i] + '" r="9" fill="transparent"><title>' + d.label + ': collected ' + fmtMoney(d.inSum) + '</title></circle>';
+    hitAreas += '<circle cx="' + xs[i] + '" cy="' + outYs[i] + '" r="9" fill="transparent"><title>' + d.label + ': handed over ' + fmtMoney(d.outSum) + '</title></circle>';
+    hitAreas += '<circle cx="' + xs[i] + '" cy="' + inYs[i] + '" r="3" style="fill:var(--credit)"/>';
+    hitAreas += '<circle cx="' + xs[i] + '" cy="' + outYs[i] + '" r="3" style="fill:var(--debit)"/>';
+    hitAreas += '<text x="' + xs[i] + '" y="' + (h-8) + '" font-size="11" style="fill:var(--ink-soft)" text-anchor="middle" font-family="Work Sans, sans-serif">' + d.label + '</text>';
   });
+
   return '<svg viewBox="0 0 ' + w + ' ' + h + '" style="width:100%;height:auto;max-width:560px;display:block;">' +
-    '<line x1="10" y1="' + baseY + '" x2="' + (w-10) + '" y2="' + baseY + '" style="stroke:var(--rule-strong)" stroke-width="1"/>' + bars + '</svg>';
+    '<defs>' +
+    '<linearGradient id="gIn" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" style="stop-color:var(--credit)" stop-opacity="0.05"/><stop offset="100%" style="stop-color:var(--credit)" stop-opacity="0.45"/></linearGradient>' +
+    '<linearGradient id="gOut" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" style="stop-color:var(--debit)" stop-opacity="0.45"/><stop offset="100%" style="stop-color:var(--debit)" stop-opacity="0.05"/></linearGradient>' +
+    '</defs>' +
+    '<line x1="10" y1="' + baseY + '" x2="' + (w-10) + '" y2="' + baseY + '" style="stroke:var(--rule-strong)" stroke-width="1"/>' +
+    '<path d="' + inPath + '" fill="url(#gIn)"/>' +
+    '<path d="' + outPath + '" fill="url(#gOut)"/>' +
+    '<path d="' + inLine + '" fill="none" style="stroke:var(--credit)" stroke-width="2"/>' +
+    '<path d="' + outLine + '" fill="none" style="stroke:var(--debit)" stroke-width="2"/>' +
+    hitAreas +
+    '</svg>';
 }
 
 /* ---------------- Render shell ---------------- */
@@ -354,6 +480,7 @@ function render() {
   const scrollY = window.scrollY;
   const viewKey = view + ':' + (view === 'ledger-detail' ? masterFocusId : '');
   const viewChanged = viewKey !== lastRenderedViewKey;
+  currentViewChanged = viewChanged;
   lastRenderedViewKey = viewKey;
 
   root.innerHTML = '';
@@ -410,7 +537,7 @@ function topbar() {
 function logout() {
   stopPolling();
   api('logout', {}).catch(() => {});
-  token = null; current = null; allTxns = []; allTransfers = []; seenIncomingIds = null;
+  token = null; current = null; allTxns = []; allTransfers = []; seenIncomingIds = null; isLoadingData = false;
   view = 'login'; loginStage = 'select'; loginError=''; pendingEmployee=null; loginUserIdValue='';
   render();
 }
@@ -448,8 +575,8 @@ function renderLogin() {
         if (!r.ok) { loginError = r.error || 'Sign-in failed.'; render(); return; }
         token = r.token || null;
         current = emp; view = emp.isMaster ? 'master' : 'employee'; loginError = ''; loginUserIdValue = '';
-        seenIncomingIds = null;
-        await refreshAll(); startPolling(); render();
+        seenIncomingIds = null; isLoadingData = true;
+        render(); startPolling(); refreshAll();
       } catch (ex) { loginError = ex.message === 'CONFIG' ? 'App not configured yet.' : 'Couldn\u2019t reach the server \u2014 check your connection.'; render(); }
     };
     const signInBtn = el('button', { class: 'btn btn-primary', style: 'width:100%', onclick: (e) => doSignIn(e.target) }, 'Sign in');
@@ -488,8 +615,8 @@ function renderLogin() {
       if (!r.ok) { loginError = r.error || 'Couldn\u2019t set PIN.'; render(); return; }
       token = r.token || null;
       current = pendingEmployee; view = pendingEmployee.isMaster ? 'master' : 'employee'; loginStage='select'; loginError=''; pendingEmployee=null; loginUserIdValue='';
-      seenIncomingIds = null;
-      await refreshAll(); startPolling(); render();
+      seenIncomingIds = null; isLoadingData = true;
+      render(); startPolling(); refreshAll();
       showToast('PIN set \u2014 welcome!');
     };
     const savePinBtn = el('button', { class: 'btn btn-primary', style: 'width:100%', onclick: (e) => doSavePin(e.target) }, 'Save PIN & sign in');
@@ -568,8 +695,9 @@ function balanceBand(label, employeeId, b, exportFns) {
 /* ---------------- Employee view ---------------- */
 function renderEmployee() {
   root.appendChild(topbar());
-  root.appendChild(tabsBar('employee'));
+  appendTabs(root, 'employee');
   root.appendChild(el('div', { class: 'sync-note' }, 'Live figures \u2014 ledger refreshes automatically every 2 minutes.'));
+  if (isLoadingData) { root.appendChild(skeletonBalanceBand()); return; }
   const b = balanceFor(current.id);
   root.appendChild(balanceBand('Cash in hand', current.id, b, {
     csv: () => exportCSV(current.id, current.name),
@@ -594,7 +722,8 @@ function renderAddForm(employeeId) {
   }
 
   const dateInput = el('input', { type: 'date', value: todayISO() });
-  const amountInput = el('input', { type: 'number', min: '0', step: '1', placeholder: '0' });
+  const amountInput = el('input', { type: 'text', inputmode: 'numeric', placeholder: '0' });
+  attachAmountFormatting(amountInput);
   card.appendChild(el('div', { class: 'field-row' }, el('div', {}, el('label', {}, 'Date'), dateInput), el('div', {}, el('label', {}, 'Amount'), amountInput)));
 
   const purposeInput = el('input', { type: 'text', list: 'purpose-list', placeholder: 'e.g. Client payment' });
@@ -610,7 +739,7 @@ function renderAddForm(employeeId) {
     card.appendChild(el('label', {}, 'Purpose')); card.appendChild(purposeInput); card.appendChild(dl);
     card.appendChild(err);
     card.appendChild(el('button', { class: 'btn btn-primary', onclick: async (e) => {
-      const amount = parseFloat(amountInput.value);
+      const amount = parseAmountInput(amountInput);
       if (!amount || amount <= 0) { err.textContent = 'Enter an amount greater than 0.'; return; }
       const toEmp = EMPLOYEES.find(x => x.id === empSelect.value);
       e.target.disabled = true;
@@ -632,7 +761,7 @@ function renderAddForm(employeeId) {
   card.appendChild(el('label', {}, 'Purpose')); card.appendChild(purposeInput); card.appendChild(dl);
   card.appendChild(err);
   card.appendChild(el('button', { class: 'btn btn-primary', onclick: async (e) => {
-    const amount = parseFloat(amountInput.value);
+    const amount = parseAmountInput(amountInput);
     if (!amount || amount <= 0) { err.textContent = 'Enter an amount greater than 0.'; return; }
     if (!partyInput.value.trim()) { err.textContent = 'Enter a name.'; return; }
     e.target.disabled = true;
@@ -709,8 +838,14 @@ function buildLedgerSection(list) {
 /* ---------------- Master overview ---------------- */
 function renderMaster() {
   root.appendChild(topbar());
-  root.appendChild(tabsBar('master'));
+  appendTabs(root, 'master');
   root.appendChild(el('div', { class: 'sync-note' }, 'Live figures \u2014 ledger refreshes automatically every 2 minutes.'));
+  if (isLoadingData) {
+    const grid = el('div', { class: 'overview-grid' });
+    for (let i = 0; i < 6; i++) grid.appendChild(skeletonEmpCard());
+    root.appendChild(grid);
+    return;
+  }
   const grand = EMPLOYEES.reduce((acc, e) => { const b = balanceFor(e.id); acc.balance += b.balance; acc.in += b.inTotal; acc.out += b.outTotal; return acc; }, { balance: 0, in: 0, out: 0 });
   root.appendChild(el('div', { class: 'totals-strip' },
     el('div', {}, 'Total cash in hand (all staff)', el('br'), el('b', {}, fmtMoney(grand.balance))),
@@ -726,13 +861,22 @@ function renderMaster() {
 
   root.appendChild(el('div', { class: 'row-between' }, el('div', { class: 'section-title' }, 'By employee')));
   const grid = el('div', { class: 'overview-grid' });
-  EMPLOYEES.forEach(e => {
+  EMPLOYEES.forEach((e, idx) => {
     const b = balanceFor(e.id);
-    grid.appendChild(el('button', { class: 'emp-card', onclick: () => { masterFocusId = e.id; view='ledger-detail'; render(); } },
-      el('div', { class: 'emp-card-top' }, avatarChip(e.id, e.name, 36), el('div', { class: 'emp-card-name' }, e.name + (e.isMaster ? ' \u00b7 Master' : ''))),
-      el('div', { class: 'emp-card-balance' }, fmtMoney(b.balance)),
+    const balanceSpan = el('span', {}, fmtMoney(lastRenderedBalance[e.id] !== undefined ? lastRenderedBalance[e.id] : b.balance));
+    const donutHolder = el('div', { style: 'flex:none' });
+    donutHolder.innerHTML = buildDonutSVG(b.inTotal, b.outTotal, 40);
+    const cardStyle = currentViewChanged ? ('animation: cardEnter .4s ease backwards; animation-delay:' + (idx * 55) + 'ms;') : '';
+    const card = el('button', { class: 'emp-card', style: cardStyle, onclick: () => { masterFocusId = e.id; view='ledger-detail'; render(); } },
+      el('div', { class: 'emp-card-top', style: 'justify-content:space-between' },
+        el('div', { style: 'display:flex;align-items:center;gap:10px' }, avatarChip(e.id, e.name, 36), el('div', { class: 'emp-card-name' }, e.name + (e.isMaster ? ' \u00b7 Master' : ''))),
+        donutHolder
+      ),
+      el('div', { class: 'emp-card-balance' }, balanceSpan),
       el('div', { class: 'emp-card-meta' }, b.count + ' entries \u00b7 in ' + fmtMoney(b.inTotal) + ' / out ' + fmtMoney(b.outTotal))
-    ));
+    );
+    grid.appendChild(card);
+    setTimeout(() => animateBalanceInto(balanceSpan, e.id, b.balance), 0);
   });
   root.appendChild(grid);
 }

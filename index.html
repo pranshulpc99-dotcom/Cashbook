@@ -76,6 +76,17 @@
   .error-msg { color: var(--danger); font-size: 0.92rem; margin: -10px 0 16px; min-height: 1em; }
   .muted-note { color: var(--ink-soft); font-size: 0.88rem; margin-top: 4px; }
   .link-btn { background: none; border: none; color: var(--navy); font-size: 0.9rem; cursor: pointer; padding: 0; text-decoration: underline; }
+  /* HARD DISABLE: no animated/rotating decoration on the balance card */
+  .balance-band::before,
+  .balance-band::after {
+    content: none !important;
+    display: none !important;
+    animation: none !important;
+    transform: none !important;
+    background: none !important;
+    border: 0 !important;
+    box-shadow: none !important;
+  }
   .balance-band { position: relative; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 18px; background: linear-gradient(160deg, var(--paper-raised), var(--paper)); border: 1px solid var(--rule); border-radius: var(--radius-l); padding: 26px 28px; margin-bottom: 26px; box-shadow: 0 10px 24px rgba(23,81,143,0.06); }
   .balance-figure-label { font-size: 0.88rem; color: var(--ink-soft); margin-bottom: 5px; }
   .balance-figure { font-family: var(--font-serif); font-size: 3rem; font-weight: 600; background: linear-gradient(135deg, var(--navy), var(--navy-soft)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; line-height: 1; }
@@ -137,6 +148,12 @@
   .search-row { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
   .search-row input { margin-bottom: 0; flex: 1; min-width: 200px; }
   @media (max-width: 560px) { html { font-size: 16.5px; } .balance-figure { font-size: 2.2rem; } .field-row { flex-direction: column; } .balance-band { padding: 18px; } }
+  /* FINAL SAFETY OVERRIDE: balance card is completely static */
+  .balance-band { animation: none !important; transform: none !important; }
+  .balance-band::before, .balance-band::after {
+    content: none !important; display: none !important; visibility: hidden !important;
+    opacity: 0 !important; animation: none !important; transform: none !important;
+  }
 </style>
 </head>
 <body>

@@ -45,7 +45,7 @@
   .brand-name { font-family: var(--font-serif); font-size: 1.75rem; font-weight: 600; color: var(--navy); }
   .brand-sub { font-size: 0.9rem; color: var(--ink-soft); }
   .who { display: flex; align-items: center; gap: 10px; font-size: 1rem; flex-wrap: wrap; }
-  .who-name { font-weight: 600; }
+  .who-name { font-weight: 600; color: var(--ink); }
   .btn { font-family: var(--font-sans); font-size: 0.95rem; font-weight: 600; padding: 11px 20px; border-radius: var(--radius-s); border: 1px solid var(--rule-strong); background: linear-gradient(160deg, var(--paper-raised), var(--paper)); color: var(--ink); cursor: pointer; transition: transform .12s ease, box-shadow .12s ease, border-color .15s ease; }
   .btn:hover { border-color: var(--navy); transform: translateY(-1px); box-shadow: 0 4px 10px rgba(23,81,143,0.12); }
   .btn:active { transform: translateY(0); }
@@ -111,7 +111,7 @@
   .emp-card { background: linear-gradient(160deg, var(--paper-raised), var(--paper)); border: 1px solid var(--rule); border-radius: var(--radius-l); padding: 20px 22px; cursor: pointer; text-align: left; font-family: var(--font-sans); transition: transform .12s ease, box-shadow .12s ease; box-shadow: 0 6px 16px rgba(23,81,143,0.05); }
   .emp-card:hover { border-color: var(--navy); transform: translateY(-2px); box-shadow: 0 10px 22px rgba(23,81,143,0.12); }
   .emp-card-top { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
-  .emp-card-name { font-weight: 600; font-size: 1.02rem; }
+  .emp-card-name { font-weight: 600; font-size: 1.02rem; color: var(--ink); }
   .emp-card-balance { font-family: var(--font-serif); font-size: 1.65rem; font-weight: 600; color: var(--navy); }
   .emp-card-meta { font-size: 0.85rem; color: var(--ink-soft); margin-top: 8px; }
   .section-title { font-family: var(--font-serif); font-size: 1.4rem; font-weight: 600; margin: 0 0 16px; color: var(--ink); }
@@ -759,7 +759,7 @@ function transferRow(t, showActions) {
   const left = el('div', { style: 'display:flex;align-items:center;gap:10px' },
     avatarChip(t.fromEmployeeId, t.fromName, 30),
     el('div', {},
-      el('div', { style: 'font-weight:600;font-size:0.92rem' }, t.fromName + ' \u2192 ' + t.toName),
+      el('div', { style: 'font-weight:600;font-size:0.92rem;color:var(--ink)' }, t.fromName + ' \u2192 ' + t.toName),
       el('div', { style: 'font-size:0.8rem;color:var(--ink-soft);margin-top:2px' }, fmtDate(t.date) + (t.purpose ? ' \u00b7 ' + t.purpose : ''))
     )
   );

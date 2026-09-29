@@ -42,7 +42,6 @@
   .wrap { max-width: 1040px; margin: 0 auto; padding: 24px 18px 72px; position: relative; z-index: 1; }
   @keyframes viewFadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
   @keyframes cardEnter { from { opacity: 0; transform: translateY(10px) scale(0.97); } to { opacity: 1; transform: none; } }
-  @keyframes rotateBorder { to { transform: rotate(360deg); } }
   @keyframes skeletonShimmer { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
   .skeleton { background: linear-gradient(100deg, var(--rule) 25%, var(--rule-strong) 45%, var(--rule) 65%); background-size: 300% 100%; animation: skeletonShimmer 1.3s ease infinite; border-radius: var(--radius-s); }
   @keyframes confettiFall { to { transform: translate(var(--tx), var(--ty)) rotate(var(--rot)); opacity: 0; } }
@@ -77,9 +76,18 @@
   .error-msg { color: var(--danger); font-size: 0.92rem; margin: -10px 0 16px; min-height: 1em; }
   .muted-note { color: var(--ink-soft); font-size: 0.88rem; margin-top: 4px; }
   .link-btn { background: none; border: none; color: var(--navy); font-size: 0.9rem; cursor: pointer; padding: 0; text-decoration: underline; }
-  .balance-band { position: relative; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 18px; background: linear-gradient(160deg, var(--paper-raised), var(--paper)); border: 1px solid var(--rule); border-radius: var(--radius-l); padding: 26px 28px; margin-bottom: 26px; box-shadow: 0 10px 24px rgba(23,81,143,0.06); z-index: 0; }
-  .balance-band::before { content: ''; position: absolute; inset: -3px; border-radius: inherit; z-index: -1; opacity: 0.5; filter: blur(1.5px); background: conic-gradient(var(--navy), var(--gold), var(--credit), var(--navy-soft), var(--navy)); animation: rotateBorder 7s linear infinite; }
-  @media (prefers-reduced-motion: reduce) { .balance-band::before { animation: none; } }
+  /* HARD DISABLE: no animated/rotating decoration on the balance card */
+  .balance-band::before,
+  .balance-band::after {
+    content: none !important;
+    display: none !important;
+    animation: none !important;
+    transform: none !important;
+    background: none !important;
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+  .balance-band { position: relative; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 18px; background: linear-gradient(160deg, var(--paper-raised), var(--paper)); border: 1px solid var(--rule); border-radius: var(--radius-l); padding: 26px 28px; margin-bottom: 26px; box-shadow: 0 10px 24px rgba(23,81,143,0.06); }
   .balance-figure-label { font-size: 0.88rem; color: var(--ink-soft); margin-bottom: 5px; }
   .balance-figure { font-family: var(--font-serif); font-size: 3rem; font-weight: 600; background: linear-gradient(135deg, var(--navy), var(--navy-soft)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; line-height: 1; }
   .balance-sub { display: flex; gap: 12px; margin-top: 14px; flex-wrap: wrap; align-items: center; }
@@ -140,6 +148,12 @@
   .search-row { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
   .search-row input { margin-bottom: 0; flex: 1; min-width: 200px; }
   @media (max-width: 560px) { html { font-size: 16.5px; } .balance-figure { font-size: 2.2rem; } .field-row { flex-direction: column; } .balance-band { padding: 18px; } }
+  /* FINAL SAFETY OVERRIDE: balance card is completely static */
+  .balance-band { animation: none !important; transform: none !important; }
+  .balance-band::before, .balance-band::after {
+    content: none !important; display: none !important; visibility: hidden !important;
+    opacity: 0 !important; animation: none !important; transform: none !important;
+  }
 </style>
 </head>
 <body>

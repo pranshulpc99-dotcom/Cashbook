@@ -212,8 +212,6 @@ const root = document.getElementById('app');
 const toastEl = document.getElementById('toast');
 function showToast(msg) { toastEl.textContent = msg; toastEl.classList.add('show'); clearTimeout(showToast._t); showToast._t = setTimeout(() => toastEl.classList.remove('show'), 3200); }
 function fmtMoney(n) { const v = Number(n) || 0; return '\u20B9' + v.toLocaleString('en-IN', { maximumFractionDigits: 0 }); }
-function fmtDate(iso) { if (!iso) return ''; const d = new Date(iso + 'T00:00:00'); if (isNaN(d)) return iso; return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }); }
-function fmtTime(createdAtIso) { if (!createdAtIso) return ''; const d = new Date(createdAtIso); if (isNaN(d)) return ''; return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }); }
 function fmtDate(value) {
   if (!value) return '';
   const text = String(value).trim();
@@ -230,7 +228,13 @@ function fmtTime(createdAtIso) {
   if (!createdAtIso) return '';
   const d = new Date(createdAtIso);
   if (isNaN(d.getTime())) return '';
-  return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' });
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: 'Asia/Kolkata'
+  }).formatToParts(d);
+  const hour = parts.find(p => p.type === 'hour').value;
+  const minute = parts.find(p => p.type === 'minute').value;
+  const period = Number(hour) >= 12 ? 'pm' : 'am';
+  return hour + ':' + minute + period;
 }
 function todayISO() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
 function initialsOf(name) { return (name || '').split(' ').filter(Boolean).slice(0,2).map(w => w[0]).join('').toUpperCase(); }
@@ -427,7 +431,6 @@ function appendTabs(container, activeKey) {
 /* ---------------- CSV / PDF export ---------------- */
 function toCSV(list) {
   const rows = [['Txn No','Date','Time','Amount','Collected From','Handover To','Purpose']];
-  list.forEach(t => rows.push([t.number, t.date, fmtTime(t.createdAt), t.amount, t.collectedFrom || '', t.handoverTo || '', t.purpose || '']));
   list.forEach(t => rows.push([t.number, fmtDate(t.date), fmtTime(t.createdAt), t.amount, t.collectedFrom || '', t.handoverTo || '', t.purpose || '']));
   const esc = v => '"' + String(v).replace(/"/g,'""') + '"';
   return rows.map(r => r.map(esc).join(',')).join('\n');

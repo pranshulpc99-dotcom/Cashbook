@@ -115,12 +115,16 @@
   .type-opt.active-in { background: rgba(31,111,99,0.16); backdrop-filter: blur(10px) saturate(160%); -webkit-backdrop-filter: blur(10px) saturate(160%); border-color: var(--credit); color: var(--credit); }
   .type-opt.active-out { background: rgba(198,55,63,0.14); backdrop-filter: blur(10px) saturate(160%); -webkit-backdrop-filter: blur(10px) saturate(160%); border-color: var(--debit); color: var(--debit); }
   .ledger-wrap { overflow-x: auto; border: 1px solid var(--rule); border-radius: var(--radius-l); background: var(--paper-raised); }
-  table.ledger { width: 100%; border-collapse: collapse; min-width: 720px; }
-  table.ledger th { text-align: left; font-size: 0.8rem; font-weight: 700; color: var(--ink-soft); padding: 13px 16px; border-bottom: 1px solid var(--rule-strong); white-space: nowrap; background: var(--paper); cursor: pointer; user-select: none; }
+  table.ledger { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 720px; }
+  table.ledger th { position: sticky; top: 0; z-index: 2; text-align: left; font-size: 0.8rem; font-weight: 700; color: var(--ink-soft); padding: 13px 16px; border-bottom: 1px solid var(--rule-strong); white-space: nowrap; background: var(--paper); cursor: pointer; user-select: none; }
   table.ledger th:hover { color: var(--navy); }
   table.ledger td { padding: 13px 16px; font-size: 0.98rem; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  table.ledger tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--paper) 52%, transparent); }
+  table.ledger tbody tr:hover td { background: color-mix(in srgb, var(--navy) 7%, var(--paper-raised)); }
   table.ledger tr:last-child td { border-bottom: none; }
   table.ledger td.num { font-family: var(--font-serif); color: var(--ink-soft); }
+  table.ledger .amount-cell, table.ledger .amount-heading { text-align: right; white-space: nowrap; }
+  table.ledger td:nth-child(2), table.ledger td:nth-child(3) { white-space: nowrap; }
   table.ledger td.amt-in .glass-chip { color: var(--credit); font-weight: 600; }
   table.ledger td.amt-out .glass-chip { color: var(--debit); font-weight: 600; }
   .dash { color: var(--rule-strong); }
@@ -132,11 +136,36 @@
   .emp-card-name { font-weight: 600; font-size: 1.02rem; color: var(--ink); }
   .emp-card-balance { font-family: var(--font-serif); font-size: 1.65rem; font-weight: 600; color: var(--navy); }
   .emp-card-meta { font-size: 0.85rem; color: var(--ink-soft); margin-top: 8px; }
+  .emp-card-submeta { display: flex; align-items: center; gap: 7px; color: var(--ink-soft); font-size: 0.78rem; line-height: 1.4; margin-top: 6px; }
+  .activity-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--credit); flex: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--credit) 15%, transparent); }
+  .pending-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--gold); flex: none; }
+  .chart-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+  .chart-toolbar h3 { margin: 0; }
+  .chart-toolbar select { width: auto; min-width: 150px; margin: 0; padding: 8px 32px 8px 12px; font-size: 0.85rem; }
+  .chart-legend { display: flex; gap: 18px; flex-wrap: wrap; color: var(--ink-soft); font-size: 0.82rem; margin: 8px 0 0; }
+  .chart-legend-item { display: inline-flex; align-items: center; gap: 7px; }
+  .chart-legend-swatch { width: 9px; height: 9px; border-radius: 50%; }
+  .chart-focus-line { stroke: var(--navy); stroke-width: 1.5; stroke-dasharray: 4 4; opacity: .8; pointer-events: none; }
+  .chart-focus { display: flex; align-items: center; gap: 10px 18px; flex-wrap: wrap; min-height: 40px; margin-top: 8px; padding: 9px 12px; border: 1px solid var(--rule); border-radius: var(--radius-s); background: var(--paper); color: var(--ink-soft); font-size: .8rem; }
+  .chart-focus b { color: var(--ink); }
+  .chart-focus .focus-in { color: var(--credit); font-weight: 600; }
+  .chart-focus .focus-out { color: var(--debit); font-weight: 600; }
   .section-title { font-family: var(--font-serif); font-size: 1.4rem; font-weight: 600; margin: 0 0 16px; color: var(--ink); }
   .row-between { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; }
   .back-link { display: inline-flex; align-items: center; gap: 6px; color: var(--navy); background: none; border: none; font-size: 0.95rem; font-weight: 600; cursor: pointer; padding: 0; margin-bottom: 16px; }
   .totals-strip { display: flex; gap: 28px; margin-bottom: 20px; flex-wrap: wrap; }
   .totals-strip div { font-size: 0.95rem; color: var(--ink-soft); } .totals-strip b { color: var(--ink); font-family: var(--font-serif); font-size: 1.2rem; }
+  .dashboard-kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 4px 0 24px; }
+  .dashboard-kpi { min-width: 0; padding: 16px 18px; border: 1px solid var(--rule); border-radius: var(--radius-m); background: linear-gradient(145deg, var(--paper-raised), var(--paper)); box-shadow: 0 5px 14px rgba(23,81,143,0.045); }
+  .dashboard-kpi-label { color: var(--ink-soft); font-size: 0.8rem; font-weight: 600; letter-spacing: .02em; }
+  .dashboard-kpi-value { color: var(--ink); font: 600 1.35rem var(--font-serif); margin-top: 5px; overflow-wrap: anywhere; }
+  .dashboard-kpi.balance { border-color: color-mix(in srgb, var(--navy) 32%, var(--rule)); background: linear-gradient(145deg, color-mix(in srgb, var(--navy) 8%, var(--paper-raised)), var(--paper)); }
+  .period-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 16px 0 4px; }
+  .period-card { min-width: 0; padding: 14px 15px; border: 1px solid var(--rule); border-radius: var(--radius-m); background: var(--paper); }
+  .period-card-label { color: var(--ink-soft); font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+  .period-card-value { color: var(--ink); font: 600 1.12rem var(--font-serif); margin-top: 5px; }
+  .period-card-delta { color: var(--ink-soft); font-size: .75rem; line-height: 1.4; margin-top: 5px; }
+  .period-caption { color: var(--ink-soft); font-size: .78rem; margin: 10px 2px 0; }
   .modal-backdrop { position: fixed; inset: 0; background: rgba(10,10,10,0.45); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 50; }
   .modal-card { background: linear-gradient(160deg, var(--paper-raised), var(--paper)); border-radius: var(--radius-l); padding: 30px 28px; max-width: 400px; width: 100%; border: 1px solid var(--rule); box-shadow: 0 16px 36px rgba(23,81,143,0.18); }
   .modal-card h3 { font-family: var(--font-serif); margin: 0 0 8px; font-size: 1.35rem; }
@@ -148,11 +177,12 @@
   .search-row { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
   .search-row input { margin-bottom: 0; flex: 1; min-width: 200px; }
   .purpose-cell { display: flex; align-items: flex-start; gap: 8px; min-width: 150px; }
-  .purpose-edit-btn { flex: none; border: 1px solid var(--rule-strong); border-radius: 7px; background: var(--paper); color: var(--navy); cursor: pointer; font: inherit; line-height: 1; padding: 5px 7px; }
+  .purpose-edit-btn { flex: none; min-width: 36px; min-height: 36px; border: 1px solid var(--rule-strong); border-radius: 9px; background: var(--paper); color: var(--navy); cursor: pointer; font: inherit; line-height: 1; padding: 5px 7px; }
   .purpose-edit-btn:hover { border-color: var(--navy); background: var(--paper-raised); }
   .purpose-edit-form { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; width: 100%; }
   .purpose-edit-form input { flex: 1; min-width: 150px; margin: 0 !important; padding: 7px 9px !important; font-size: 0.9rem !important; }
-  @media (max-width: 560px) { html { font-size: 16.5px; } .balance-figure { font-size: 2.2rem; } .field-row { flex-direction: column; } .balance-band { padding: 18px; } }
+  @media (max-width: 680px) { .dashboard-kpis, .period-cards { grid-template-columns: 1fr; } .dashboard-kpi { padding: 14px 16px; } }
+  @media (max-width: 560px) { html { font-size: 16.5px; } .balance-figure { font-size: 2.2rem; } .field-row { flex-direction: column; } .balance-band { padding: 18px; } .form-card { padding: 18px 16px; } .chart-toolbar select { flex: 1; } .purpose-edit-form .btn { min-height: 40px; } }
   /* FINAL SAFETY OVERRIDE: balance card is completely static */
   .balance-band { animation: none !important; transform: none !important; }
   .balance-band::before, .balance-band::after {
@@ -207,6 +237,7 @@ let seenIncomingIds = null;
 let isLoadingData = false;
 let currentViewChanged = false;
 let lastTabPillPos = {};
+let lastRefreshAt = null;
 
 const root = document.getElementById('app');
 const toastEl = document.getElementById('toast');
@@ -235,6 +266,57 @@ function fmtTime(createdAtIso) {
   const minute = parts.find(p => p.type === 'minute').value;
   const period = Number(hour) >= 12 ? 'pm' : 'am';
   return hour + ':' + minute + period;
+}
+function istTodayKey() {
+  const parts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
+  const get = type => parts.find(p => p.type === type).value;
+  return get('year') + '-' + get('month') + '-' + get('day');
+}
+function dateKeyIST(value) {
+  if (!value) return '';
+  const text = String(value).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+  const date = new Date(text);
+  if (isNaN(date.getTime())) return '';
+  const parts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date);
+  const get = type => parts.find(p => p.type === type).value;
+  return get('year') + '-' + get('month') + '-' + get('day');
+}
+function shiftDateKey(key, days) {
+  const [year, month, day] = key.split('-').map(Number);
+  const d = new Date(Date.UTC(year, month - 1, day + days, 12));
+  return d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0') + '-' + String(d.getUTCDate()).padStart(2, '0');
+}
+function periodBounds(range) {
+  const end = istTodayKey();
+  const [year, month, day] = end.split('-').map(Number);
+  const start = range === 'month'
+    ? end.slice(0, 8) + '01'
+    : shiftDateKey(end, 1 - (Number(range) || 7));
+  const startParts = start.split('-').map(Number);
+  const length = Math.round((Date.UTC(year, month - 1, day, 12) - Date.UTC(startParts[0], startParts[1] - 1, startParts[2], 12)) / 86400000) + 1;
+  const previousEnd = shiftDateKey(start, -1);
+  const previousStart = shiftDateKey(previousEnd, 1 - length);
+  return { start, end, previousStart, previousEnd, length };
+}
+function sumTransactionsBetween(list, start, end) {
+  let collected = 0, handedOver = 0;
+  list.forEach(t => {
+    const key = dateKeyIST(t.date);
+    if (!key || key < start || key > end) return;
+    if (t.type === 'in') collected += Number(t.amount) || 0;
+    else if (t.type === 'out') handedOver += Number(t.amount) || 0;
+  });
+  return { collected, handedOver, net: collected - handedOver };
+}
+function periodDeltaText(value, previous) {
+  const delta = value - previous;
+  const sign = delta >= 0 ? '+' : '\u2212';
+  const percent = previous === 0 ? '' : ' (' + Math.round(Math.abs(delta) / Math.abs(previous) * 100) + '%)';
+  return sign + fmtMoney(Math.abs(delta)) + percent + ' vs prior period';
+}
+function lastSyncedLabel() {
+  return lastRefreshAt ? 'Updated at ' + fmtTime(lastRefreshAt.toISOString()) + ' IST' : 'Waiting for first sync';
 }
 function todayISO() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
 function initialsOf(name) { return (name || '').split(' ').filter(Boolean).slice(0,2).map(w => w[0]).join('').toUpperCase(); }
@@ -293,6 +375,7 @@ async function refreshAll() {
     const [txr, trr] = await Promise.all([api('listTransactions'), api('listTransfers')]);
     if (txr && txr.ok) allTxns = txr.transactions || [];
     if (trr && trr.ok) { allTransfers = trr.transfers || []; checkForNewIncoming(); }
+    if (txr && txr.ok) lastRefreshAt = new Date();
     isLoadingData = false;
     if (!isUserTyping()) render();
   } catch (e) { isLoadingData = false; /* silent — keep last known data */ }
@@ -429,14 +512,25 @@ function appendTabs(container, activeKey) {
 }
 
 /* ---------------- CSV / PDF export ---------------- */
-function toCSV(list) {
-  const rows = [['Txn No','Date','Time','Amount','Collected From','Handover To','Purpose']];
+function toCSV(list, employeeName, balance) {
+  const generated = new Date().toISOString();
+  const rows = [
+    ['Drashti Cashbook — Statement'],
+    ['Employee', employeeName],
+    ['Generated (IST)', fmtDate(generated) + ' ' + fmtTime(generated) + ' IST'],
+    ['Cash in hand', fmtMoney(balance.balance)],
+    ['Total collected', fmtMoney(balance.inTotal)],
+    ['Total handed over', fmtMoney(balance.outTotal)],
+    ['Entries', balance.count],
+    [],
+    ['Txn No','Date','Time','Amount','Collected From','Handover To','Purpose']
+  ];
   list.forEach(t => rows.push([t.number, fmtDate(t.date), fmtTime(t.createdAt), t.amount, t.collectedFrom || '', t.handoverTo || '', t.purpose || '']));
   const esc = v => '"' + String(v).replace(/"/g,'""') + '"';
   return rows.map(r => r.map(esc).join(',')).join('\n');
 }
 function exportCSV(employeeId, employeeName) {
-  const csv = toCSV(txnsFor(employeeId));
+  const csv = toCSV(txnsFor(employeeId), employeeName, balanceFor(employeeId));
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -445,24 +539,31 @@ function exportCSV(employeeId, employeeName) {
   URL.revokeObjectURL(url);
 }
 function exportPDF(employeeName, list, balance) {
+  const generated = new Date().toISOString();
+  const generatedLabel = fmtDate(generated) + ' ' + fmtTime(generated) + ' IST';
+  const escapeHtml = value => String(value == null ? '' : value).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
   const rowsHtml = [...list].sort((a,b) => (b.number||0)-(a.number||0)).map(t =>
     '<tr><td>' + t.number + '</td><td>' + fmtDate(t.date) + '</td><td>' + fmtTime(t.createdAt) + '</td>' +
     '<td style="color:' + (t.type==='in' ? '#1F6F63' : '#C6373F') + '">' + (t.type==='in' ? '+' : '\u2212') + fmtMoney(t.amount) + '</td>' +
-    '<td>' + (t.collectedFrom || '\u2014') + '</td><td>' + (t.handoverTo || '\u2014') + '</td><td>' + (t.purpose || '\u2014') + '</td></tr>'
+    '<td>' + escapeHtml(t.collectedFrom || '\u2014') + '</td><td>' + escapeHtml(t.handoverTo || '\u2014') + '</td><td>' + escapeHtml(t.purpose || '\u2014') + '</td></tr>'
   ).join('');
-  const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + employeeName + ' - Cashbook Statement</title>' +
+  const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + escapeHtml(employeeName) + ' - Cashbook Statement</title>' +
     '<style>body{font-family:Georgia,serif;color:#241F1B;padding:32px;}' +
     '.head{display:flex;align-items:center;gap:16px;border-bottom:3px solid #C79A46;padding-bottom:16px;margin-bottom:20px;}' +
     '.head img{width:60px;height:60px;border-radius:50%;object-fit:cover;}' +
     'h1{font-size:20px;margin:0;color:#17518F;}.sub{color:#666;font-size:12px;margin-top:2px;}' +
-    '.balance{font-size:26px;font-weight:bold;color:#17518F;margin:16px 0 4px;}' +
-    'table{width:100%;border-collapse:collapse;font-size:12px;margin-top:16px;}th,td{border-bottom:1px solid #ddd;padding:8px;text-align:left;}' +
-    'th{background:#f5f5f5;}.footer{margin-top:24px;text-align:center;color:#B8892B;font-style:italic;font-size:12px;}</style></head><body>' +
+    '.summary-title{font-size:14px;color:#17518F;margin:20px 0 8px;}.summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px;}' +
+    '.summary-item{border:1px solid #dce2e9;border-radius:9px;padding:11px;background:#f8fafc;}.summary-item span{display:block;color:#666;font-size:10px;margin-bottom:5px;}.summary-item b{font-size:14px;color:#1E2229;}' +
+    '.balance b{color:#17518F;font-size:16px;}table{width:100%;border-collapse:collapse;font-size:12px;margin-top:10px;}th,td{border-bottom:1px solid #ddd;padding:8px;text-align:left;}' +
+    'th{background:#f5f5f5;}.footer{margin-top:24px;text-align:center;color:#B8892B;font-style:italic;font-size:12px;}@media print{body{padding:12px;}}</style></head><body>' +
     '<div class="head"><img src="data:image/png;base64,' + LOGO_B64 + '"/><div><h1>Drashti Cashbook \u2014 Statement</h1>' +
-    '<div class="sub">' + employeeName + ' \u00b7 Generated ' + new Date().toLocaleString('en-IN') + '</div></div></div>' +
-    '<div class="balance">Cash in hand: ' + fmtMoney(balance.balance) + '</div>' +
-    '<div class="sub">Collected: ' + fmtMoney(balance.inTotal) + ' &nbsp;|&nbsp; Handed over: ' + fmtMoney(balance.outTotal) + ' &nbsp;|&nbsp; Entries: ' + balance.count + '</div>' +
-    '<table><thead><tr><th>#</th><th>Date</th><th>Time</th><th>Amount</th><th>Collected From</th><th>Handover To</th><th>Purpose</th></tr></thead>' +
+    '<div class="sub">' + escapeHtml(employeeName) + ' \u00b7 Generated ' + generatedLabel + '</div></div></div>' +
+    '<h2 class="summary-title">Statement summary</h2><div class="summary-grid">' +
+    '<div class="summary-item balance"><span>Cash in hand</span><b>' + fmtMoney(balance.balance) + '</b></div>' +
+    '<div class="summary-item"><span>Total collected</span><b>' + fmtMoney(balance.inTotal) + '</b></div>' +
+    '<div class="summary-item"><span>Total handed over</span><b>' + fmtMoney(balance.outTotal) + '</b></div>' +
+    '<div class="summary-item"><span>Entries</span><b>' + balance.count + '</b></div></div>' +
+    '<h2 class="summary-title">Transaction ledger</h2><table><thead><tr><th>#</th><th>Date</th><th>Time (IST)</th><th>Amount</th><th>Collected From</th><th>Handover To</th><th>Purpose</th></tr></thead>' +
     '<tbody>' + (rowsHtml || '<tr><td colspan="7">No entries</td></tr>') + '</tbody></table>' +
     '<div class="footer">Cash counted, journeys uncounted.</div>' +
     '<script>window.onload=function(){setTimeout(function(){window.print();},300);};<' + '/script></body></html>';
@@ -472,18 +573,24 @@ function exportPDF(employeeName, list, balance) {
 }
 
 /* ---------------- Trend chart ---------------- */
-function buildTrendChartSVG(txns) {
+function buildTrendChartSVG(txns, range) {
+  range = range || '7';
   const istToday = new Intl.DateTimeFormat('en-GB', {
     timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit'
   }).formatToParts(new Date());
   const part = type => istToday.find(p => p.type === type).value;
   const todayUtc = new Date(Date.UTC(Number(part('year')), Number(part('month')) - 1, Number(part('day')), 12));
+  const dayCount = range === 'month' ? todayUtc.getUTCDate() : Number(range) || 7;
   const days = [];
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date(Date.UTC(todayUtc.getUTCFullYear(), todayUtc.getUTCMonth(), todayUtc.getUTCDate() - i, 12));
+  for (let i = dayCount - 1; i >= 0; i--) {
+    const d = range === 'month'
+      ? new Date(Date.UTC(todayUtc.getUTCFullYear(), todayUtc.getUTCMonth(), dayCount - i, 12))
+      : new Date(Date.UTC(todayUtc.getUTCFullYear(), todayUtc.getUTCMonth(), todayUtc.getUTCDate() - i, 12));
+    const key = d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0') + '-' + String(d.getUTCDate()).padStart(2, '0');
     days.push({
-      key: d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0') + '-' + String(d.getUTCDate()).padStart(2, '0'),
-      label: d.toLocaleDateString('en-IN', { weekday: 'short', timeZone: 'UTC' })
+      key: key,
+      label: range === '7' ? d.toLocaleDateString('en-IN', { weekday: 'short', timeZone: 'UTC' }) : String(d.getUTCDate()),
+      dateLabel: fmtDate(key)
     });
   }
   function transactionDayKey(value) {
@@ -501,29 +608,32 @@ function buildTrendChartSVG(txns) {
   const perDay = days.map(d => {
     let inSum = 0, outSum = 0;
     txns.forEach(t => { if (transactionDayKey(t.date) === d.key) { if (t.type === 'in') inSum += Number(t.amount)||0; else outSum += Number(t.amount)||0; } });
-    return { label: d.label, inSum, outSum };
+    return { label: d.label, dateLabel: d.dateLabel, inSum, outSum };
   });
   const max = Math.max(1, ...perDay.map(d => Math.max(d.inSum, d.outSum)));
-  const w = 560, h = 190, baseY = 95, step = (w - 48) / 6;
+  const w = 560, h = 190, baseY = 95, step = (w - 48) / Math.max(1, perDay.length - 1);
   const xs = perDay.map((d, i) => 24 + i * step);
+  const lastX = xs[xs.length - 1];
   const inYs = perDay.map(d => baseY - Math.round((d.inSum / max) * 78));
   const outYs = perDay.map(d => baseY + Math.round((d.outSum / max) * 78));
 
-  const inPath = 'M ' + xs[0] + ',' + baseY + ' ' + xs.map((x,i) => 'L ' + x + ',' + inYs[i]).join(' ') + ' L ' + xs[6] + ',' + baseY + ' Z';
-  const outPath = 'M ' + xs[0] + ',' + baseY + ' ' + xs.map((x,i) => 'L ' + x + ',' + outYs[i]).join(' ') + ' L ' + xs[6] + ',' + baseY + ' Z';
+  const inPath = 'M ' + xs[0] + ',' + baseY + ' ' + xs.map((x,i) => 'L ' + x + ',' + inYs[i]).join(' ') + ' L ' + lastX + ',' + baseY + ' Z';
+  const outPath = 'M ' + xs[0] + ',' + baseY + ' ' + xs.map((x,i) => 'L ' + x + ',' + outYs[i]).join(' ') + ' L ' + lastX + ',' + baseY + ' Z';
   const inLine = xs.map((x,i) => (i===0?'M ':'L ') + x + ',' + inYs[i]).join(' ');
   const outLine = xs.map((x,i) => (i===0?'M ':'L ') + x + ',' + outYs[i]).join(' ');
 
   let hitAreas = '';
   perDay.forEach((d, i) => {
-    hitAreas += '<circle cx="' + xs[i] + '" cy="' + inYs[i] + '" r="9" fill="transparent"><title>' + d.label + ': collected ' + fmtMoney(d.inSum) + '</title></circle>';
-    hitAreas += '<circle cx="' + xs[i] + '" cy="' + outYs[i] + '" r="9" fill="transparent"><title>' + d.label + ': handed over ' + fmtMoney(d.outSum) + '</title></circle>';
+    const showLabel = range === '7' || i === 0 || (i + 1) % 5 === 0 || i === perDay.length - 1;
+    const pointAttrs = 'class="trend-hit" tabindex="0" role="button" data-x="' + xs[i] + '" data-date="' + d.dateLabel + '" data-collected="' + d.inSum + '" data-handed="' + d.outSum + '" aria-label="' + d.dateLabel + ', collected ' + fmtMoney(d.inSum) + ', handed over ' + fmtMoney(d.outSum) + '"';
+    hitAreas += '<circle ' + pointAttrs + ' cx="' + xs[i] + '" cy="' + inYs[i] + '" r="10" fill="transparent"><title>' + d.dateLabel + ': collected ' + fmtMoney(d.inSum) + '</title></circle>';
+    hitAreas += '<circle ' + pointAttrs + ' cx="' + xs[i] + '" cy="' + outYs[i] + '" r="10" fill="transparent"><title>' + d.dateLabel + ': handed over ' + fmtMoney(d.outSum) + '</title></circle>';
     hitAreas += '<circle cx="' + xs[i] + '" cy="' + inYs[i] + '" r="3" style="fill:var(--credit)"/>';
     hitAreas += '<circle cx="' + xs[i] + '" cy="' + outYs[i] + '" r="3" style="fill:var(--debit)"/>';
-    hitAreas += '<text x="' + xs[i] + '" y="' + (h-8) + '" font-size="11" style="fill:var(--ink-soft)" text-anchor="middle" font-family="Work Sans, sans-serif">' + d.label + '</text>';
+    if (showLabel) hitAreas += '<text x="' + xs[i] + '" y="' + (h-8) + '" font-size="11" style="fill:var(--ink-soft)" text-anchor="middle" font-family="Work Sans, sans-serif">' + d.label + '</text>';
   });
 
-  return '<svg viewBox="0 0 ' + w + ' ' + h + '" style="width:100%;height:auto;max-width:560px;display:block;">' +
+  return '<svg viewBox="0 0 ' + w + ' ' + h + '" role="group" aria-label="Cash movement by day" style="width:100%;height:auto;max-width:560px;display:block;">' +
     '<defs>' +
     '<linearGradient id="gIn" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" style="stop-color:var(--credit)" stop-opacity="0.05"/><stop offset="100%" style="stop-color:var(--credit)" stop-opacity="0.45"/></linearGradient>' +
     '<linearGradient id="gOut" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" style="stop-color:var(--debit)" stop-opacity="0.45"/><stop offset="100%" style="stop-color:var(--debit)" stop-opacity="0.05"/></linearGradient>' +
@@ -534,6 +644,7 @@ function buildTrendChartSVG(txns) {
     '<path d="' + inLine + '" fill="none" style="stroke:var(--credit)" stroke-width="2"/>' +
     '<path d="' + outLine + '" fill="none" style="stroke:var(--debit)" stroke-width="2"/>' +
     hitAreas +
+    '<line class="chart-focus-line" data-focus-line x1="0" y1="8" x2="0" y2="' + (h - 20) + '" style="display:none"/>' +
     '</svg>';
 }
 
@@ -929,7 +1040,7 @@ function buildLedgerSection(list) {
         el('td', { class: 'num' }, String(t.number)),
         el('td', {}, fmtDate(t.date)),
         el('td', {}, fmtTime(t.createdAt) || el('span', { class: 'dash' }, '\u2014')),
-        el('td', { class: t.type === 'in' ? 'amt-in' : 'amt-out' }, el('span', { class: 'glass-chip ' + (t.type === 'in' ? 'glass-in' : 'glass-out') }, (t.type === 'in' ? '+' : '\u2212') + fmtMoney(t.amount))),
+        el('td', { class: (t.type === 'in' ? 'amt-in' : 'amt-out') + ' amount-cell' }, el('span', { class: 'glass-chip ' + (t.type === 'in' ? 'glass-in' : 'glass-out') }, (t.type === 'in' ? '+' : '\u2212') + fmtMoney(t.amount))),
         el('td', {}, t.collectedFrom ? t.collectedFrom : el('span', { class: 'dash' }, '\u2014')),
         el('td', {}, t.handoverTo ? t.handoverTo : el('span', { class: 'dash' }, '\u2014')),
         purposeCell(t)
@@ -937,7 +1048,7 @@ function buildLedgerSection(list) {
     });
   }
   cols.forEach(c => {
-    theadRow.appendChild(el('th', { onclick: () => { if (sortKey === c.key) sortDir = sortDir === 'asc' ? 'desc' : 'asc'; else { sortKey = c.key; sortDir = 'desc'; } renderRows(); } },
+    theadRow.appendChild(el('th', { class: c.key === 'amount' ? 'amount-heading' : '', onclick: () => { if (sortKey === c.key) sortDir = sortDir === 'asc' ? 'desc' : 'asc'; else { sortKey = c.key; sortDir = 'desc'; } renderRows(); } },
       c.label + (sortKey === c.key ? (sortDir === 'asc' ? ' \u25B2' : ' \u25BC') : '')
     ));
   });
@@ -951,7 +1062,7 @@ function buildLedgerSection(list) {
 function renderMaster() {
   root.appendChild(topbar());
   appendTabs(root, 'master');
-  root.appendChild(el('div', { class: 'sync-note' }, 'Live figures \u2014 ledger refreshes automatically every 2 minutes.'));
+  root.appendChild(el('div', { class: 'sync-note' }, 'Company-wide figures \u00b7 ' + lastSyncedLabel() + ' \u00b7 refreshes every 2 minutes.'));
   if (isLoadingData) {
     const grid = el('div', { class: 'overview-grid' });
     for (let i = 0; i < 6; i++) grid.appendChild(skeletonEmpCard());
@@ -959,16 +1070,76 @@ function renderMaster() {
     return;
   }
   const grand = EMPLOYEES.reduce((acc, e) => { const b = balanceFor(e.id); acc.balance += b.balance; acc.in += b.inTotal; acc.out += b.outTotal; return acc; }, { balance: 0, in: 0, out: 0 });
-  root.appendChild(el('div', { class: 'totals-strip' },
-    el('div', {}, 'Total cash in hand (all staff)', el('br'), el('b', {}, fmtMoney(grand.balance))),
-    el('div', {}, 'Total collected', el('br'), el('b', {}, fmtMoney(grand.in))),
-    el('div', {}, 'Total handed over', el('br'), el('b', {}, fmtMoney(grand.out)))
+  root.appendChild(el('div', { class: 'dashboard-kpis' },
+    el('div', { class: 'dashboard-kpi balance' }, el('div', { class: 'dashboard-kpi-label' }, 'Cash in hand · all staff'), el('div', { class: 'dashboard-kpi-value' }, fmtMoney(grand.balance))),
+    el('div', { class: 'dashboard-kpi' }, el('div', { class: 'dashboard-kpi-label' }, 'Total collected'), el('div', { class: 'dashboard-kpi-value' }, fmtMoney(grand.in))),
+    el('div', { class: 'dashboard-kpi' }, el('div', { class: 'dashboard-kpi-label' }, 'Total handed over'), el('div', { class: 'dashboard-kpi-value' }, fmtMoney(grand.out)))
   ));
 
-  const chartCard = el('div', { class: 'form-card' }, el('h3', {}, 'Last 7 days \u2014 company-wide'));
+  let chartRange = '7';
+  const chartTitle = el('h3', {}, 'Cash movement \u00b7 last 7 days');
+  const chartRangeSelect = el('select', { 'aria-label': 'Chart date range' },
+    el('option', { value: '7' }, 'Last 7 days'),
+    el('option', { value: '30' }, 'Last 30 days'),
+    el('option', { value: 'month' }, 'This month')
+  );
+  const chartCard = el('div', { class: 'form-card' });
+  chartCard.appendChild(el('div', { class: 'chart-toolbar' }, chartTitle, chartRangeSelect));
   const chartHolder = el('div', {});
-  chartHolder.innerHTML = buildTrendChartSVG(allTxns);
+  const focusDate = el('b', {}, 'Select a chart point');
+  const focusCollected = el('span', { class: 'focus-in' }, 'Collected: \u2014');
+  const focusHanded = el('span', { class: 'focus-out' }, 'Handed over: \u2014');
+  const chartFocus = el('div', { class: 'chart-focus', role: 'status', 'aria-live': 'polite' }, focusDate, focusCollected, focusHanded);
+  const periodCards = el('div', { class: 'period-cards' });
+  const periodCaption = el('div', { class: 'period-caption' }, 'Compared with the immediately preceding period of the same length.');
+  const updateTrendChart = () => {
+    const selectedLabel = chartRangeSelect.options[chartRangeSelect.selectedIndex].text;
+    chartTitle.textContent = 'Cash movement \u00b7 ' + selectedLabel.toLowerCase();
+    chartHolder.innerHTML = buildTrendChartSVG(allTxns, chartRange);
+    const svg = chartHolder.querySelector('svg');
+    const focusLine = svg && svg.querySelector('[data-focus-line]');
+    const selectPoint = point => {
+      if (!point) return;
+      const x = point.getAttribute('data-x');
+      focusLine.setAttribute('x1', x); focusLine.setAttribute('x2', x); focusLine.style.display = '';
+      focusDate.textContent = point.getAttribute('data-date');
+      focusCollected.textContent = 'Collected: ' + fmtMoney(point.getAttribute('data-collected'));
+      focusHanded.textContent = 'Handed over: ' + fmtMoney(point.getAttribute('data-handed'));
+    };
+    const points = svg ? [...svg.querySelectorAll('.trend-hit')] : [];
+    points.forEach(point => {
+      point.addEventListener('pointerenter', () => selectPoint(point));
+      point.addEventListener('click', () => selectPoint(point));
+      point.addEventListener('focus', () => selectPoint(point));
+    });
+    if (points.length) selectPoint(points[points.length - 1]);
+
+    const bounds = periodBounds(chartRange);
+    const currentPeriod = sumTransactionsBetween(allTxns, bounds.start, bounds.end);
+    const previousPeriod = sumTransactionsBetween(allTxns, bounds.previousStart, bounds.previousEnd);
+    const metrics = [
+      { label: 'Collected', value: currentPeriod.collected, previous: previousPeriod.collected },
+      { label: 'Handed over', value: currentPeriod.handedOver, previous: previousPeriod.handedOver },
+      { label: 'Net movement', value: currentPeriod.net, previous: previousPeriod.net }
+    ];
+    periodCards.innerHTML = '';
+    metrics.forEach(metric => periodCards.appendChild(el('div', { class: 'period-card' },
+      el('div', { class: 'period-card-label' }, metric.label),
+      el('div', { class: 'period-card-value' }, fmtMoney(metric.value)),
+      el('div', { class: 'period-card-delta' }, periodDeltaText(metric.value, metric.previous))
+    )));
+    periodCaption.textContent = 'Selected period: ' + fmtDate(bounds.start) + ' to ' + fmtDate(bounds.end) + ' IST · comparison uses the immediately preceding ' + bounds.length + ' days.';
+  };
+  chartRangeSelect.addEventListener('change', () => { chartRange = chartRangeSelect.value; updateTrendChart(); });
+  updateTrendChart();
   chartCard.appendChild(chartHolder);
+  chartCard.appendChild(chartFocus);
+  chartCard.appendChild(el('div', { class: 'chart-legend', 'aria-label': 'Chart legend' },
+    el('span', { class: 'chart-legend-item' }, el('span', { class: 'chart-legend-swatch', style: 'background:var(--credit)' }), 'Collected'),
+    el('span', { class: 'chart-legend-item' }, el('span', { class: 'chart-legend-swatch', style: 'background:var(--debit)' }), 'Handed over')
+  ));
+  chartCard.appendChild(periodCards);
+  chartCard.appendChild(periodCaption);
   root.appendChild(chartCard);
 
   root.appendChild(el('div', { class: 'row-between' }, el('div', { class: 'section-title' }, 'By employee')));
@@ -976,6 +1147,13 @@ function renderMaster() {
   EMPLOYEES.forEach((e, idx) => {
     const b = balanceFor(e.id);
     const balanceSpan = el('span', {}, fmtMoney(lastRenderedBalance[e.id] !== undefined ? lastRenderedBalance[e.id] : b.balance));
+    const employeeTxns = txnsFor(e.id);
+    const latestTxn = employeeTxns.reduce((latest, txn) => {
+      if (!latest) return txn;
+      return new Date(txn.createdAt || txn.date) > new Date(latest.createdAt || latest.date) ? txn : latest;
+    }, null);
+    const pendingInCount = allTransfers.filter(t => t.toEmployeeId === e.id && t.status === 'pending').length;
+    const pendingOutCount = allTransfers.filter(t => t.fromEmployeeId === e.id && t.status === 'pending').length;
     const donutHolder = el('div', { style: 'flex:none' });
     donutHolder.innerHTML = buildDonutSVG(b.inTotal, b.outTotal, 40);
     const cardStyle = currentViewChanged ? ('animation: cardEnter .4s ease backwards; animation-delay:' + (idx * 55) + 'ms;') : '';
@@ -985,7 +1163,17 @@ function renderMaster() {
         donutHolder
       ),
       el('div', { class: 'emp-card-balance' }, balanceSpan),
-      el('div', { class: 'emp-card-meta' }, b.count + ' entries \u00b7 in ' + fmtMoney(b.inTotal) + ' / out ' + fmtMoney(b.outTotal))
+      el('div', { class: 'emp-card-meta' }, b.count + ' entries \u00b7 in ' + fmtMoney(b.inTotal) + ' / out ' + fmtMoney(b.outTotal)),
+      el('div', { class: 'emp-card-submeta' },
+        el('span', { class: 'activity-dot' }),
+        latestTxn ? 'Latest: ' + fmtDate(latestTxn.date) + ' \u00b7 ' + (fmtTime(latestTxn.createdAt) || 'time unavailable') : 'No ledger entries yet'
+      ),
+      el('div', { class: 'emp-card-submeta' },
+        el('span', { class: 'pending-dot' }),
+        pendingInCount || pendingOutCount
+          ? (pendingInCount ? pendingInCount + ' to approve' : '') + (pendingInCount && pendingOutCount ? ' \u00b7 ' : '') + (pendingOutCount ? pendingOutCount + ' awaiting approval' : '')
+          : 'No pending transfers'
+      )
     );
     grid.appendChild(card);
     setTimeout(() => animateBalanceInto(balanceSpan, e.id, b.balance), 0);

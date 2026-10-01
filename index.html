@@ -39,6 +39,19 @@
   @keyframes blobDrift3 { 0% { transform: translate(0,0) scale(1); } 50% { transform: translate(-60px,80px) scale(1.2); } 100% { transform: translate(40px,30px) scale(0.9); } }
   @media (prefers-reduced-motion: reduce) { .bg-blob { animation: none !important; } }
   .bg-grain { position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: 0.045; mix-blend-mode: overlay; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>"); }
+  .cash-pulse { position:fixed;inset:0;z-index:80;overflow:hidden;pointer-events:none;opacity:0; }
+  .cash-pulse.cash-in { background:radial-gradient(ellipse at center,rgba(31,161,111,.22),rgba(31,161,111,.10) 52%,rgba(31,161,111,.04)); }
+  .cash-pulse.cash-out { background:radial-gradient(ellipse at center,rgba(220,59,68,.22),rgba(220,59,68,.10) 52%,rgba(220,59,68,.04)); }
+  .cash-pulse::before,.cash-pulse::after { content:'';position:absolute;left:50%;top:50%;width:min(35vw,320px);aspect-ratio:1;border:2px solid currentColor;border-radius:50%;transform:translate(-50%,-50%) scale(.2);opacity:0; }
+  .cash-pulse.cash-in { color:rgba(31,111,99,.46); }
+  .cash-pulse.cash-out { color:rgba(198,55,63,.46); }
+  .cash-pulse::after { width:min(55vw,520px); }
+  .cash-pulse.play { animation:cashScreenFade 1.05s ease-out both; }
+  .cash-pulse.play::before { animation:cashBubble 1.05s ease-out both; }
+  .cash-pulse.play::after { animation:cashBubble 1.05s .12s ease-out both; }
+  @keyframes cashScreenFade { 0%{opacity:0} 20%{opacity:1} 100%{opacity:0} }
+  @keyframes cashBubble { 0%{opacity:0;transform:translate(-50%,-50%) scale(.2)} 22%{opacity:.8} 100%{opacity:0;transform:translate(-50%,-50%) scale(2.7)} }
+  @media (prefers-reduced-motion: reduce) { .cash-pulse.play { animation-duration:.45s; } .cash-pulse.play::before,.cash-pulse.play::after { animation:none;opacity:0; } }
   .wrap { max-width: 1040px; margin: 0 auto; padding: 24px 18px 72px; position: relative; z-index: 1; }
   @keyframes viewFadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
   @keyframes cardEnter { from { opacity: 0; transform: translateY(10px) scale(0.97); } to { opacity: 1; transform: none; } }
@@ -208,6 +221,7 @@
 <div id="app" class="wrap"></div>
 <footer class="app-footer">Cash counted, journeys uncounted.</footer>
 <div id="toast" class="toast"></div>
+<div id="cashPulse" class="cash-pulse" aria-hidden="true"></div>
 
 <script>
 /* =====================================================================
@@ -243,6 +257,7 @@ let pollTimer = null, fastPollTimer = null, changePinOpen = false, outTarget = '
 let token = null;
 let lastRenderedBalance = {};
 let seenIncomingIds = null;
+let seenTransactionIds = null;
 let isLoadingData = false;
 let currentViewChanged = false;
 let lastTabPillPos = {};
@@ -252,7 +267,16 @@ let ledgerFilters = {};
 
 const root = document.getElementById('app');
 const toastEl = document.getElementById('toast');
+const cashPulseEl = document.getElementById('cashPulse');
 function showToast(msg) { toastEl.textContent = msg; toastEl.classList.add('show'); clearTimeout(showToast._t); showToast._t = setTimeout(() => toastEl.classList.remove('show'), 3200); }
+function triggerCashPulse(type) {
+  if (!cashPulseEl || (type !== 'in' && type !== 'out')) return;
+  cashPulseEl.className = 'cash-pulse cash-' + (type === 'in' ? 'in' : 'out');
+  void cashPulseEl.offsetWidth;
+  cashPulseEl.classList.add('play');
+  clearTimeout(triggerCashPulse._timer);
+  triggerCashPulse._timer = setTimeout(() => { cashPulseEl.className = 'cash-pulse'; }, 1200);
+}
 function fmtMoney(n) { const v = Number(n) || 0; return '\u20B9' + v.toLocaleString('en-IN', { maximumFractionDigits: 0 }); }
 function fmtDate(value) {
   if (!value) return '';
@@ -400,7 +424,19 @@ function isUserTyping() {
 async function refreshAll() {
   try {
     const [txr, trr] = await Promise.all([api('listTransactions'), api('listTransfers')]);
-    if (txr && txr.ok) allTxns = txr.transactions || [];
+    if (txr && txr.ok) {
+      const updatedTxns = txr.transactions || [];
+      const updatedIds = new Set(updatedTxns.map(t => String(t.id)));
+      if (seenTransactionIds !== null) {
+        const added = updatedTxns.filter(t => !seenTransactionIds.has(String(t.id)));
+        if (added.length) {
+          const newest = added.reduce((a, b) => new Date(a.createdAt || 0) >= new Date(b.createdAt || 0) ? a : b);
+          triggerCashPulse(newest.type);
+        }
+      }
+      seenTransactionIds = updatedIds;
+      allTxns = updatedTxns;
+    }
     if (trr && trr.ok) { allTransfers = trr.transfers || []; checkForNewIncoming(); }
     if (txr && txr.ok) lastRefreshAt = new Date();
     isLoadingData = false;
@@ -739,7 +775,7 @@ function topbar() {
 function logout() {
   stopPolling();
   api('logout', {}).catch(() => {});
-  token = null; current = null; allTxns = []; allTransfers = []; seenIncomingIds = null; isLoadingData = false;
+  token = null; current = null; allTxns = []; allTransfers = []; seenIncomingIds = null; seenTransactionIds = null; isLoadingData = false;
   view = 'login'; loginStage = 'select'; loginError=''; pendingEmployee=null; loginUserIdValue='';
   render();
 }
@@ -970,6 +1006,10 @@ function renderAddForm(employeeId) {
     try {
       const r = await api('addTransaction', { employeeId, date: dateInput.value || todayISO(), amount, type: txnType, party: partyInput.value.trim(), purpose: purposeInput.value.trim() });
       if (!r.ok) { err.textContent = r.error || 'Couldn\u2019t save \u2014 try again.'; e.target.disabled = false; return; }
+      if (r.transaction) {
+        if (seenTransactionIds) seenTransactionIds.add(String(r.transaction.id));
+        triggerCashPulse(r.transaction.type);
+      }
       showToast('Entry added'); err.textContent = '';
       amountInput.value = ''; partyInput.value = ''; purposeInput.value = '';
       await refreshAll();

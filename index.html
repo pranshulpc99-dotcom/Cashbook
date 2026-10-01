@@ -147,6 +147,11 @@
   .app-footer { text-align: center; font-family: var(--font-serif); font-style: italic; font-size: 0.95rem; color: var(--gold); letter-spacing: 0.3px; padding: 18px 16px 34px; opacity: 0.85; position: relative; z-index: 1; }
   .search-row { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
   .search-row input { margin-bottom: 0; flex: 1; min-width: 200px; }
+  .purpose-cell { display: flex; align-items: flex-start; gap: 8px; min-width: 150px; }
+  .purpose-edit-btn { flex: none; border: 1px solid var(--rule-strong); border-radius: 7px; background: var(--paper); color: var(--navy); cursor: pointer; font: inherit; line-height: 1; padding: 5px 7px; }
+  .purpose-edit-btn:hover { border-color: var(--navy); background: var(--paper-raised); }
+  .purpose-edit-form { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; width: 100%; }
+  .purpose-edit-form input { flex: 1; min-width: 150px; margin: 0 !important; padding: 7px 9px !important; font-size: 0.9rem !important; }
   @media (max-width: 560px) { html { font-size: 16.5px; } .balance-figure { font-size: 2.2rem; } .field-row { flex-direction: column; } .balance-band { padding: 18px; } }
   /* FINAL SAFETY OVERRIDE: balance card is completely static */
   .balance-band { animation: none !important; transform: none !important; }
@@ -209,6 +214,24 @@ function showToast(msg) { toastEl.textContent = msg; toastEl.classList.add('show
 function fmtMoney(n) { const v = Number(n) || 0; return '\u20B9' + v.toLocaleString('en-IN', { maximumFractionDigits: 0 }); }
 function fmtDate(iso) { if (!iso) return ''; const d = new Date(iso + 'T00:00:00'); if (isNaN(d)) return iso; return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }); }
 function fmtTime(createdAtIso) { if (!createdAtIso) return ''; const d = new Date(createdAtIso); if (isNaN(d)) return ''; return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }); }
+function fmtDate(value) {
+  if (!value) return '';
+  const text = String(value).trim();
+  const dateOnly = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (dateOnly) {
+    const d = new Date(Date.UTC(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3]), 12));
+    return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' });
+  }
+  const d = new Date(text);
+  if (isNaN(d.getTime())) return text;
+  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' });
+}
+function fmtTime(createdAtIso) {
+  if (!createdAtIso) return '';
+  const d = new Date(createdAtIso);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' });
+}
 function todayISO() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
 function initialsOf(name) { return (name || '').split(' ').filter(Boolean).slice(0,2).map(w => w[0]).join('').toUpperCase(); }
 
@@ -405,6 +428,7 @@ function appendTabs(container, activeKey) {
 function toCSV(list) {
   const rows = [['Txn No','Date','Time','Amount','Collected From','Handover To','Purpose']];
   list.forEach(t => rows.push([t.number, t.date, fmtTime(t.createdAt), t.amount, t.collectedFrom || '', t.handoverTo || '', t.purpose || '']));
+  list.forEach(t => rows.push([t.number, fmtDate(t.date), fmtTime(t.createdAt), t.amount, t.collectedFrom || '', t.handoverTo || '', t.purpose || '']));
   const esc = v => '"' + String(v).replace(/"/g,'""') + '"';
   return rows.map(r => r.map(esc).join(',')).join('\n');
 }
@@ -794,6 +818,7 @@ function renderAddForm(employeeId) {
 /* ---------------- Sortable / searchable ledger (local state, no full re-render) ---------------- */
 function buildLedgerSection(list) {
   let sortKey = 'number', sortDir = 'desc', search = '';
+  const canEditPurpose = !!(current && current.id === 'ravi' && !current.isMaster);
   const container = el('div', {});
   const searchInput = el('input', { type: 'text', placeholder: 'Search by name, purpose, or date\u2026' });
   container.appendChild(el('div', { class: 'search-row' }, searchInput));
@@ -809,6 +834,54 @@ function buildLedgerSection(list) {
   const thead = el('thead', {}, theadRow);
   const tbody = el('tbody', {});
   table.appendChild(thead); table.appendChild(tbody); wrap.appendChild(table);
+
+  function purposeCell(t) {
+    const cell = el('td', { class: canEditPurpose ? 'purpose-cell' : '' });
+    const purposeText = el('span', {}, t.purpose || el('span', { class: 'dash' }, '\u2014'));
+    cell.appendChild(purposeText);
+    if (!canEditPurpose) return cell;
+
+    cell.appendChild(el('button', {
+      type: 'button', class: 'purpose-edit-btn', title: 'Edit purpose',
+      'aria-label': 'Edit purpose for transaction ' + t.number,
+      onclick: () => beginPurposeEdit(cell, t)
+    }, '\u270e'));
+    return cell;
+  }
+
+  function beginPurposeEdit(cell, t) {
+    cell.innerHTML = '';
+    const input = el('input', {
+      type: 'text', maxlength: '300', value: t.purpose || '',
+      'aria-label': 'Purpose', placeholder: 'Enter the full purpose'
+    });
+    const error = el('div', { class: 'error-msg', style: 'width:100%;margin:0;min-height:0' }, '');
+    const form = el('div', { class: 'purpose-edit-form' }, input);
+    form.appendChild(el('button', { type: 'button', class: 'btn btn-small', onclick: () => renderRows() }, 'Cancel'));
+    form.appendChild(el('button', { type: 'button', class: 'btn btn-small btn-primary', onclick: async (e) => {
+      const purpose = input.value.trim();
+      if (!purpose) { error.textContent = 'Purpose cannot be empty.'; return; }
+      e.currentTarget.disabled = true;
+      try {
+        const result = await api('updatePurpose', { transactionId: t.id, purpose });
+        if (!result || !result.ok) {
+          error.textContent = (result && result.error) || 'Could not update purpose.';
+          e.currentTarget.disabled = false;
+          return;
+        }
+        t.purpose = purpose;
+        showToast('Purpose updated');
+        renderRows();
+      } catch (ex) {
+        error.textContent = 'Could not reach the server.';
+        e.currentTarget.disabled = false;
+      }
+    } }, 'Save'));
+    cell.appendChild(form);
+    cell.appendChild(error);
+    input.focus();
+    input.select();
+  }
 
   function renderRows() {
     const term = search.trim().toLowerCase();
@@ -834,7 +907,7 @@ function buildLedgerSection(list) {
         el('td', { class: t.type === 'in' ? 'amt-in' : 'amt-out' }, el('span', { class: 'glass-chip ' + (t.type === 'in' ? 'glass-in' : 'glass-out') }, (t.type === 'in' ? '+' : '\u2212') + fmtMoney(t.amount))),
         el('td', {}, t.collectedFrom ? t.collectedFrom : el('span', { class: 'dash' }, '\u2014')),
         el('td', {}, t.handoverTo ? t.handoverTo : el('span', { class: 'dash' }, '\u2014')),
-        el('td', {}, t.purpose || el('span', { class: 'dash' }, '\u2014'))
+        purposeCell(t)
       ));
     });
   }

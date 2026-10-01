@@ -181,6 +181,15 @@
   .purpose-edit-btn:hover { border-color: var(--navy); background: var(--paper-raised); }
   .purpose-edit-form { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; width: 100%; }
   .purpose-edit-form input { flex: 1; min-width: 150px; margin: 0 !important; padding: 7px 9px !important; font-size: 0.9rem !important; }
+  .filter-toolbar { display:flex;align-items:end;gap:10px;flex-wrap:wrap;margin:0 0 18px;padding:14px;border:1px solid var(--rule);border-radius:var(--radius-m);background:var(--paper-raised); }
+  .filter-toolbar label { margin-bottom:5px;font-size:.76rem; }
+  .filter-toolbar select,.filter-toolbar input { width:auto;min-width:130px;margin:0;padding:9px 11px;font-size:.88rem; }
+  .insight-grid,.eod-grid { display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px; }
+  .insight-card,.eod-card { padding:14px 16px;border:1px solid var(--rule);border-radius:var(--radius-m);background:var(--paper); }
+  .insight-card b,.eod-card b { display:block;margin-top:5px;font:600 1.12rem var(--font-serif);color:var(--ink); }
+  .insight-label { color:var(--ink-soft);font-size:.78rem;font-weight:600; }
+  .filter-count { color:var(--ink-soft);font-size:.8rem;margin:0 0 9px; }
+  .transfer-age { color:var(--ink-soft);font-size:.76rem;margin-top:3px; }
   @media (max-width: 680px) { .dashboard-kpis, .period-cards { grid-template-columns: 1fr; } .dashboard-kpi { padding: 14px 16px; } }
   @media (max-width: 560px) { html { font-size: 16.5px; } .balance-figure { font-size: 2.2rem; } .field-row { flex-direction: column; } .balance-band { padding: 18px; } .form-card { padding: 18px 16px; } .chart-toolbar select { flex: 1; } .purpose-edit-form .btn { min-height: 40px; } }
   /* FINAL SAFETY OVERRIDE: balance card is completely static */
@@ -238,6 +247,8 @@ let isLoadingData = false;
 let currentViewChanged = false;
 let lastTabPillPos = {};
 let lastRefreshAt = null;
+let dashboardRange = '7';
+let ledgerFilters = {};
 
 const root = document.getElementById('app');
 const toastEl = document.getElementById('toast');
@@ -298,6 +309,22 @@ function periodBounds(range) {
   const previousEnd = shiftDateKey(start, -1);
   const previousStart = shiftDateKey(previousEnd, 1 - length);
   return { start, end, previousStart, previousEnd, length };
+}
+function dashboardBounds() {
+  if (dashboardRange === 'all') {
+    const keys = allTxns.map(t => dateKeyIST(t.date)).filter(Boolean).sort();
+    return { start: keys[0] || istTodayKey(), end: istTodayKey() };
+  }
+  if (dashboardRange === 'custom') {
+    const start = document.getElementById('dashStart')?.value || istTodayKey();
+    const end = document.getElementById('dashEnd')?.value || istTodayKey();
+    return { start: start <= end ? start : end, end: start <= end ? end : start };
+  }
+  if (dashboardRange === 'today') return { start: istTodayKey(), end: istTodayKey() };
+  return periodBounds(dashboardRange);
+}
+function filterTransactionsByBounds(list, bounds) {
+  return list.filter(t => { const key = dateKeyIST(t.date); return key && key >= bounds.start && key <= bounds.end; });
 }
 function sumTransactionsBetween(list, start, end) {
   let collected = 0, handedOver = 0;
@@ -574,22 +601,23 @@ function exportPDF(employeeName, list, balance) {
 
 /* ---------------- Trend chart ---------------- */
 function buildTrendChartSVG(txns, range) {
-  range = range || '7';
-  const istToday = new Intl.DateTimeFormat('en-GB', {
-    timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit'
-  }).formatToParts(new Date());
-  const part = type => istToday.find(p => p.type === type).value;
-  const todayUtc = new Date(Date.UTC(Number(part('year')), Number(part('month')) - 1, Number(part('day')), 12));
-  const dayCount = range === 'month' ? todayUtc.getUTCDate() : Number(range) || 7;
+  range = range || { start: periodBounds('7').start, end: istTodayKey() };
+  const startKey = range.start || periodBounds('7').start;
+  const endKey = range.end || istTodayKey();
+  const [sy, sm, sd] = startKey.split('-').map(Number);
+  const [ey, em, ed] = endKey.split('-').map(Number);
+  const startUtc = new Date(Date.UTC(sy, sm - 1, sd, 12));
+  const endUtc = new Date(Date.UTC(ey, em - 1, ed, 12));
+  const fullDayCount = Math.max(1, Math.round((endUtc - startUtc) / 86400000) + 1);
+  const dayCount = Math.min(fullDayCount, 60);
+  const chartStartUtc = new Date(Date.UTC(ey, em - 1, ed - dayCount + 1, 12));
   const days = [];
   for (let i = dayCount - 1; i >= 0; i--) {
-    const d = range === 'month'
-      ? new Date(Date.UTC(todayUtc.getUTCFullYear(), todayUtc.getUTCMonth(), dayCount - i, 12))
-      : new Date(Date.UTC(todayUtc.getUTCFullYear(), todayUtc.getUTCMonth(), todayUtc.getUTCDate() - i, 12));
+    const d = new Date(Date.UTC(chartStartUtc.getUTCFullYear(), chartStartUtc.getUTCMonth(), chartStartUtc.getUTCDate() + i, 12));
     const key = d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0') + '-' + String(d.getUTCDate()).padStart(2, '0');
     days.push({
       key: key,
-      label: range === '7' ? d.toLocaleDateString('en-IN', { weekday: 'short', timeZone: 'UTC' }) : String(d.getUTCDate()),
+      label: dayCount <= 7 ? d.toLocaleDateString('en-IN', { weekday: 'short', timeZone: 'UTC' }) : String(d.getUTCDate()),
       dateLabel: fmtDate(key)
     });
   }
@@ -624,7 +652,7 @@ function buildTrendChartSVG(txns, range) {
 
   let hitAreas = '';
   perDay.forEach((d, i) => {
-    const showLabel = range === '7' || i === 0 || (i + 1) % 5 === 0 || i === perDay.length - 1;
+    const showLabel = dayCount <= 7 || i === 0 || (i + 1) % Math.max(1, Math.ceil(dayCount / 8)) === 0 || i === perDay.length - 1;
     const pointAttrs = 'class="trend-hit" tabindex="0" role="button" data-x="' + xs[i] + '" data-date="' + d.dateLabel + '" data-collected="' + d.inSum + '" data-handed="' + d.outSum + '" aria-label="' + d.dateLabel + ', collected ' + fmtMoney(d.inSum) + ', handed over ' + fmtMoney(d.outSum) + '"';
     hitAreas += '<circle ' + pointAttrs + ' cx="' + xs[i] + '" cy="' + inYs[i] + '" r="10" fill="transparent"><title>' + d.dateLabel + ': collected ' + fmtMoney(d.inSum) + '</title></circle>';
     hitAreas += '<circle ' + pointAttrs + ' cx="' + xs[i] + '" cy="' + outYs[i] + '" r="10" fill="transparent"><title>' + d.dateLabel + ': handed over ' + fmtMoney(d.outSum) + '</title></circle>';
@@ -953,12 +981,25 @@ function renderAddForm(employeeId) {
 
 /* ---------------- Sortable / searchable ledger (local state, no full re-render) ---------------- */
 function buildLedgerSection(list) {
-  let sortKey = 'number', sortDir = 'desc', search = '';
+  let sortKey = 'number', sortDir = 'desc', search = '', filterType = 'all', filterName = '', filterPurpose = '', fromDate = '', toDate = '';
   const canEditPurpose = !!(current && current.id === 'ravi' && !current.isMaster);
   const container = el('div', {});
-  const searchInput = el('input', { type: 'text', placeholder: 'Search by name, purpose, or date\u2026' });
+  const searchInput = el('input', { type: 'text', placeholder: 'Search by name, purpose, or date…' });
+  const fromInput = el('input', { type: 'date', 'aria-label': 'From date' });
+  const toInput = el('input', { type: 'date', 'aria-label': 'To date' });
+  const typeSelect = el('select', { 'aria-label': 'Transaction direction' },
+    el('option', { value: 'all' }, 'All directions'), el('option', { value: 'in' }, 'Collected in'), el('option', { value: 'out' }, 'Handed over'));
+  const nameInput = el('input', { type: 'text', placeholder: 'Name contains…', 'aria-label': 'Filter by name' });
+  const purposeFilterInput = el('input', { type: 'text', placeholder: 'Purpose contains…', 'aria-label': 'Filter by purpose' });
+  const countLabel = el('div', { class: 'filter-count' }, '');
+  const exportBtn = el('button', { class: 'btn btn-small' }, 'Export filtered CSV');
+  container.appendChild(el('div', { class: 'filter-toolbar' },
+    el('div', {}, el('label', {}, 'From date'), fromInput), el('div', {}, el('label', {}, 'To date'), toInput),
+    el('div', {}, el('label', {}, 'Direction'), typeSelect), el('div', {}, el('label', {}, 'Name'), nameInput),
+    el('div', {}, el('label', {}, 'Purpose'), purposeFilterInput), exportBtn
+  ));
   container.appendChild(el('div', { class: 'search-row' }, searchInput));
-
+  container.appendChild(countLabel);
   const wrap = el('div', { class: 'ledger-wrap' });
   const table = el('table', { class: 'ledger' });
   const cols = [
@@ -966,192 +1007,213 @@ function buildLedgerSection(list) {
     { key: 'amount', label: 'Amount' }, { key: 'collectedFrom', label: 'Collected from' },
     { key: 'handoverTo', label: 'Handover to' }, { key: 'purpose', label: 'Purpose' }
   ];
-  const theadRow = el('tr', {});
-  const thead = el('thead', {}, theadRow);
-  const tbody = el('tbody', {});
+  const theadRow = el('tr', {}), thead = el('thead', {}, theadRow), tbody = el('tbody', {});
   table.appendChild(thead); table.appendChild(tbody); wrap.appendChild(table);
 
   function purposeCell(t) {
     const cell = el('td', { class: canEditPurpose ? 'purpose-cell' : '' });
-    const purposeText = el('span', {}, t.purpose || el('span', { class: 'dash' }, '\u2014'));
+    const purposeText = el('span', {}, t.purpose || el('span', { class: 'dash' }, '—'));
     cell.appendChild(purposeText);
     if (!canEditPurpose) return cell;
-
-    cell.appendChild(el('button', {
-      type: 'button', class: 'purpose-edit-btn', title: 'Edit purpose',
-      'aria-label': 'Edit purpose for transaction ' + t.number,
-      onclick: () => beginPurposeEdit(cell, t)
-    }, '\u270e'));
+    cell.appendChild(el('button', { type: 'button', class: 'purpose-edit-btn', title: 'Edit purpose',
+      'aria-label': 'Edit purpose for transaction ' + t.number, onclick: () => beginPurposeEdit(cell, t) }, '✎'));
     return cell;
   }
-
   function beginPurposeEdit(cell, t) {
     cell.innerHTML = '';
-    const input = el('input', {
-      type: 'text', maxlength: '300', value: t.purpose || '',
-      'aria-label': 'Purpose', placeholder: 'Enter the full purpose'
-    });
+    const input = el('input', { type: 'text', maxlength: '300', value: t.purpose || '', 'aria-label': 'Purpose', placeholder: 'Enter the full purpose' });
     const error = el('div', { class: 'error-msg', style: 'width:100%;margin:0;min-height:0' }, '');
     const form = el('div', { class: 'purpose-edit-form' }, input);
     form.appendChild(el('button', { type: 'button', class: 'btn btn-small', onclick: () => renderRows() }, 'Cancel'));
-    form.appendChild(el('button', { type: 'button', class: 'btn btn-small btn-primary', onclick: async (e) => {
+    form.appendChild(el('button', { type: 'button', class: 'btn btn-small btn-primary', onclick: async e => {
       const purpose = input.value.trim();
       if (!purpose) { error.textContent = 'Purpose cannot be empty.'; return; }
       e.currentTarget.disabled = true;
       try {
         const result = await api('updatePurpose', { transactionId: t.id, purpose });
-        if (!result || !result.ok) {
-          error.textContent = (result && result.error) || 'Could not update purpose.';
-          e.currentTarget.disabled = false;
-          return;
-        }
-        t.purpose = purpose;
-        showToast('Purpose updated');
-        renderRows();
-      } catch (ex) {
-        error.textContent = 'Could not reach the server.';
-        e.currentTarget.disabled = false;
-      }
+        if (!result || !result.ok) { error.textContent = (result && result.error) || 'Could not update purpose.'; e.currentTarget.disabled = false; return; }
+        t.purpose = purpose; showToast('Purpose updated'); renderRows();
+      } catch (ex) { error.textContent = 'Could not reach the server.'; e.currentTarget.disabled = false; }
     } }, 'Save'));
-    cell.appendChild(form);
-    cell.appendChild(error);
-    input.focus();
-    input.select();
+    cell.appendChild(form); cell.appendChild(error); input.focus(); input.select();
   }
-
   function renderRows() {
-    const term = search.trim().toLowerCase();
-    let filtered = !term ? list.slice() : list.filter(t => (String(t.collectedFrom||'') + ' ' + String(t.handoverTo||'') + ' ' + String(t.purpose||'') + ' ' + String(t.date||'')).toLowerCase().includes(term));
-    filtered.sort((a, b) => {
-      let av = a[sortKey], bv = b[sortKey];
-      if (sortKey === 'amount' || sortKey === 'number') { av = Number(av)||0; bv = Number(bv)||0; }
-      else { av = String(av||'').toLowerCase(); bv = String(bv||'').toLowerCase(); }
-      if (av < bv) return sortDir === 'asc' ? -1 : 1;
-      if (av > bv) return sortDir === 'asc' ? 1 : -1;
-      return 0;
+    const term = search.trim().toLowerCase(), nameTerm = filterName.trim().toLowerCase(), purposeTerm = filterPurpose.trim().toLowerCase();
+    let filtered = list.filter(t => {
+      const key = dateKeyIST(t.date);
+      const name = (String(t.collectedFrom || '') + ' ' + String(t.handoverTo || '')).toLowerCase();
+      const purpose = String(t.purpose || '').toLowerCase();
+      return (!term || (name + ' ' + purpose + ' ' + String(t.date || '')).toLowerCase().includes(term)) &&
+        (!nameTerm || name.includes(nameTerm)) && (!purposeTerm || purpose.includes(purposeTerm)) &&
+        (filterType === 'all' || t.type === filterType) && (!fromDate || key >= fromDate) && (!toDate || key <= toDate);
     });
-    tbody.innerHTML = '';
-    if (!filtered.length) {
-      tbody.appendChild(el('tr', { class: 'empty-row' }, el('td', { colspan: '7' }, list.length ? 'No matching entries.' : 'No entries yet.')));
-      return;
-    }
-    filtered.forEach(t => {
-      tbody.appendChild(el('tr', {},
-        el('td', { class: 'num' }, String(t.number)),
-        el('td', {}, fmtDate(t.date)),
-        el('td', {}, fmtTime(t.createdAt) || el('span', { class: 'dash' }, '\u2014')),
-        el('td', { class: (t.type === 'in' ? 'amt-in' : 'amt-out') + ' amount-cell' }, el('span', { class: 'glass-chip ' + (t.type === 'in' ? 'glass-in' : 'glass-out') }, (t.type === 'in' ? '+' : '\u2212') + fmtMoney(t.amount))),
-        el('td', {}, t.collectedFrom ? t.collectedFrom : el('span', { class: 'dash' }, '\u2014')),
-        el('td', {}, t.handoverTo ? t.handoverTo : el('span', { class: 'dash' }, '\u2014')),
-        purposeCell(t)
-      ));
+    filtered.sort((a,b) => {
+      let av=a[sortKey], bv=b[sortKey];
+      if(sortKey==='amount'||sortKey==='number'){av=Number(av)||0;bv=Number(bv)||0;}
+      else {av=String(av||'').toLowerCase();bv=String(bv||'').toLowerCase();}
+      return av===bv?0:(av<bv?(sortDir==='asc'?-1:1):(sortDir==='asc'?1:-1));
     });
+    tbody.innerHTML='';
+    countLabel.textContent='Showing '+filtered.length+' of '+list.length+' entries';
+    exportBtn.disabled=!filtered.length;
+    exportBtn.onclick=()=>{
+      const csv=toCSV(filtered), blob=new Blob([csv],{type:'text/csv;charset=utf-8;'}), url=URL.createObjectURL(blob), a=document.createElement('a');
+      a.href=url;a.download='Drashti-Cashbook-filtered-'+todayISO()+'.csv';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
+    };
+    if(!filtered.length){tbody.appendChild(el('tr',{class:'empty-row'},el('td',{colspan:'7'},list.length?'No matching entries.':'No entries yet.')));return;}
+    filtered.forEach(t=>tbody.appendChild(el('tr',{},
+      el('td',{class:'num'},String(t.number)),el('td',{},fmtDate(t.date)),
+      el('td',{},fmtTime(t.createdAt)||el('span',{class:'dash'},'—')),
+      el('td',{class:(t.type==='in'?'amt-in':'amt-out')+' amount-cell'},el('span',{class:'glass-chip '+(t.type==='in'?'glass-in':'glass-out')},(t.type==='in'?'+':'−')+fmtMoney(t.amount))),
+      el('td',{},t.collectedFrom||el('span',{class:'dash'},'—')),el('td',{},t.handoverTo||el('span',{class:'dash'},'—')),purposeCell(t)
+    )));
   }
-  cols.forEach(c => {
-    theadRow.appendChild(el('th', { class: c.key === 'amount' ? 'amount-heading' : '', onclick: () => { if (sortKey === c.key) sortDir = sortDir === 'asc' ? 'desc' : 'asc'; else { sortKey = c.key; sortDir = 'desc'; } renderRows(); } },
-      c.label + (sortKey === c.key ? (sortDir === 'asc' ? ' \u25B2' : ' \u25BC') : '')
-    ));
-  });
-  searchInput.addEventListener('input', () => { search = searchInput.value; renderRows(); });
-  renderRows();
-  container.appendChild(wrap);
-  return container;
+  cols.forEach(c=>theadRow.appendChild(el('th',{class:c.key==='amount'?'amount-heading':'',onclick:()=>{if(sortKey===c.key)sortDir=sortDir==='asc'?'desc':'asc';else{sortKey=c.key;sortDir='desc';}renderRows();}},
+    c.label+(sortKey===c.key?(sortDir==='asc'?' ▲':' ▼'):'')
+  )));
+  searchInput.addEventListener('input',()=>{search=searchInput.value;renderRows();});
+  fromInput.addEventListener('change',()=>{fromDate=fromInput.value;renderRows();});
+  toInput.addEventListener('change',()=>{toDate=toInput.value;renderRows();});
+  typeSelect.addEventListener('change',()=>{filterType=typeSelect.value;renderRows();});
+  nameInput.addEventListener('input',()=>{filterName=nameInput.value;renderRows();});
+  purposeFilterInput.addEventListener('input',()=>{filterPurpose=purposeFilterInput.value;renderRows();});
+  renderRows();container.appendChild(wrap);return container;
 }
 
 /* ---------------- Master overview ---------------- */
 function renderMaster() {
   root.appendChild(topbar());
   appendTabs(root, 'master');
-  root.appendChild(el('div', { class: 'sync-note' }, 'Company-wide figures \u00b7 ' + lastSyncedLabel() + ' \u00b7 refreshes every 2 minutes.'));
+  root.appendChild(el('div', { class: 'sync-note' }, 'Company-wide figures · ' + lastSyncedLabel() + ' · refreshes every 2 minutes.'));
   if (isLoadingData) {
     const grid = el('div', { class: 'overview-grid' });
     for (let i = 0; i < 6; i++) grid.appendChild(skeletonEmpCard());
     root.appendChild(grid);
     return;
   }
-  const grand = EMPLOYEES.reduce((acc, e) => { const b = balanceFor(e.id); acc.balance += b.balance; acc.in += b.inTotal; acc.out += b.outTotal; return acc; }, { balance: 0, in: 0, out: 0 });
-  root.appendChild(el('div', { class: 'dashboard-kpis' },
-    el('div', { class: 'dashboard-kpi balance' }, el('div', { class: 'dashboard-kpi-label' }, 'Cash in hand · all staff'), el('div', { class: 'dashboard-kpi-value' }, fmtMoney(grand.balance))),
-    el('div', { class: 'dashboard-kpi' }, el('div', { class: 'dashboard-kpi-label' }, 'Total collected'), el('div', { class: 'dashboard-kpi-value' }, fmtMoney(grand.in))),
-    el('div', { class: 'dashboard-kpi' }, el('div', { class: 'dashboard-kpi-label' }, 'Total handed over'), el('div', { class: 'dashboard-kpi-value' }, fmtMoney(grand.out)))
-  ));
 
-  let chartRange = '7';
-  const chartTitle = el('h3', {}, 'Cash movement \u00b7 last 7 days');
-  const chartRangeSelect = el('select', { 'aria-label': 'Chart date range' },
+  const bounds = dashboardBounds();
+  const periodTxns = filterTransactionsByBounds(allTxns, bounds);
+  const selectedTotals = sumTransactionsBetween(periodTxns, bounds.start, bounds.end);
+  const currentBalance = EMPLOYEES.reduce((sum, e) => sum + balanceFor(e.id).balance, 0);
+  const rangeSelect = el('select', { 'aria-label': 'Shared dashboard date range' },
+    el('option', { value: 'today' }, 'Today (IST)'),
     el('option', { value: '7' }, 'Last 7 days'),
     el('option', { value: '30' }, 'Last 30 days'),
-    el('option', { value: 'month' }, 'This month')
+    el('option', { value: 'month' }, 'This month'),
+    el('option', { value: 'all' }, 'All available data')
   );
-  const chartCard = el('div', { class: 'form-card' });
-  chartCard.appendChild(el('div', { class: 'chart-toolbar' }, chartTitle, chartRangeSelect));
-  const chartHolder = el('div', {});
-  const focusDate = el('b', {}, 'Select a chart point');
-  const focusCollected = el('span', { class: 'focus-in' }, 'Collected: \u2014');
-  const focusHanded = el('span', { class: 'focus-out' }, 'Handed over: \u2014');
-  const chartFocus = el('div', { class: 'chart-focus', role: 'status', 'aria-live': 'polite' }, focusDate, focusCollected, focusHanded);
-  const periodCards = el('div', { class: 'period-cards' });
-  const periodCaption = el('div', { class: 'period-caption' }, 'Compared with the immediately preceding period of the same length.');
-  const updateTrendChart = () => {
-    const selectedLabel = chartRangeSelect.options[chartRangeSelect.selectedIndex].text;
-    chartTitle.textContent = 'Cash movement \u00b7 ' + selectedLabel.toLowerCase();
-    chartHolder.innerHTML = buildTrendChartSVG(allTxns, chartRange);
-    const svg = chartHolder.querySelector('svg');
-    const focusLine = svg && svg.querySelector('[data-focus-line]');
-    const selectPoint = point => {
-      if (!point) return;
-      const x = point.getAttribute('data-x');
-      focusLine.setAttribute('x1', x); focusLine.setAttribute('x2', x); focusLine.style.display = '';
-      focusDate.textContent = point.getAttribute('data-date');
-      focusCollected.textContent = 'Collected: ' + fmtMoney(point.getAttribute('data-collected'));
-      focusHanded.textContent = 'Handed over: ' + fmtMoney(point.getAttribute('data-handed'));
-    };
-    const points = svg ? [...svg.querySelectorAll('.trend-hit')] : [];
-    points.forEach(point => {
-      point.addEventListener('pointerenter', () => selectPoint(point));
-      point.addEventListener('click', () => selectPoint(point));
-      point.addEventListener('focus', () => selectPoint(point));
-    });
-    if (points.length) selectPoint(points[points.length - 1]);
+  rangeSelect.value = dashboardRange;
+  rangeSelect.addEventListener('change', () => { dashboardRange = rangeSelect.value; render(); });
+  root.appendChild(el('div', { class: 'filter-toolbar' },
+    el('div', {}, el('label', {}, 'Shared dashboard period · IST'), rangeSelect),
+    el('div', { class: 'muted-note' }, 'Updates the chart, period totals, employee activity, and purpose insights. Cash in hand stays the current lifetime balance.')
+  ));
 
-    const bounds = periodBounds(chartRange);
-    const currentPeriod = sumTransactionsBetween(allTxns, bounds.start, bounds.end);
-    const previousPeriod = sumTransactionsBetween(allTxns, bounds.previousStart, bounds.previousEnd);
-    const metrics = [
-      { label: 'Collected', value: currentPeriod.collected, previous: previousPeriod.collected },
-      { label: 'Handed over', value: currentPeriod.handedOver, previous: previousPeriod.handedOver },
-      { label: 'Net movement', value: currentPeriod.net, previous: previousPeriod.net }
-    ];
-    periodCards.innerHTML = '';
-    metrics.forEach(metric => periodCards.appendChild(el('div', { class: 'period-card' },
-      el('div', { class: 'period-card-label' }, metric.label),
-      el('div', { class: 'period-card-value' }, fmtMoney(metric.value)),
-      el('div', { class: 'period-card-delta' }, periodDeltaText(metric.value, metric.previous))
-    )));
-    periodCaption.textContent = 'Selected period: ' + fmtDate(bounds.start) + ' to ' + fmtDate(bounds.end) + ' IST · comparison uses the immediately preceding ' + bounds.length + ' days.';
+  root.appendChild(el('div', { class: 'dashboard-kpis' },
+    el('div', { class: 'dashboard-kpi balance' }, el('div', { class: 'dashboard-kpi-label' }, 'Current cash in hand · all staff'), el('div', { class: 'dashboard-kpi-value' }, fmtMoney(currentBalance))),
+    el('div', { class: 'dashboard-kpi' }, el('div', { class: 'dashboard-kpi-label' }, 'Collected · selected period'), el('div', { class: 'dashboard-kpi-value' }, fmtMoney(selectedTotals.collected))),
+    el('div', { class: 'dashboard-kpi' }, el('div', { class: 'dashboard-kpi-label' }, 'Handed over · selected period'), el('div', { class: 'dashboard-kpi-value' }, fmtMoney(selectedTotals.handedOver)))
+  ));
+
+  const chartCard = el('div', { class: 'form-card' });
+  chartCard.appendChild(el('h3', {}, 'Cash movement · ' + fmtDate(bounds.start) + ' to ' + fmtDate(bounds.end)));
+  const chartHolder = el('div', {});
+  chartHolder.innerHTML = buildTrendChartSVG(periodTxns, bounds);
+  const chartFocusDate = el('b', {}, 'Select a chart point');
+  const chartFocusIn = el('span', { class: 'focus-in' }, 'Collected: —');
+  const chartFocusOut = el('span', { class: 'focus-out' }, 'Handed over: —');
+  const focus = el('div', { class: 'chart-focus', role: 'status' }, chartFocusDate, chartFocusIn, chartFocusOut);
+  const svg = chartHolder.querySelector('svg');
+  const focusLine = svg && svg.querySelector('[data-focus-line]');
+  const points = svg ? [...svg.querySelectorAll('.trend-hit')] : [];
+  const selectPoint = point => {
+    if (!point || !focusLine) return;
+    const x = point.getAttribute('data-x');
+    focusLine.setAttribute('x1', x); focusLine.setAttribute('x2', x); focusLine.style.display = '';
+    chartFocusDate.textContent = point.getAttribute('data-date');
+    chartFocusIn.textContent = 'Collected: ' + fmtMoney(point.getAttribute('data-collected'));
+    chartFocusOut.textContent = 'Handed over: ' + fmtMoney(point.getAttribute('data-handed'));
   };
-  chartRangeSelect.addEventListener('change', () => { chartRange = chartRangeSelect.value; updateTrendChart(); });
-  updateTrendChart();
+  points.forEach(point => {
+    point.addEventListener('pointerenter', () => selectPoint(point));
+    point.addEventListener('click', () => selectPoint(point));
+    point.addEventListener('focus', () => selectPoint(point));
+  });
+  if (points.length) selectPoint(points[points.length - 1]);
   chartCard.appendChild(chartHolder);
-  chartCard.appendChild(chartFocus);
-  chartCard.appendChild(el('div', { class: 'chart-legend', 'aria-label': 'Chart legend' },
+  if ((Date.parse(bounds.end + 'T12:00:00Z') - Date.parse(bounds.start + 'T12:00:00Z')) / 86400000 + 1 > 60) {
+    chartCard.appendChild(el('div', { class: 'muted-note' }, 'Chart displays the latest 60 days; period totals and insights include the full selected range.'));
+  }
+  chartCard.appendChild(focus);
+  chartCard.appendChild(el('div', { class: 'chart-legend' },
     el('span', { class: 'chart-legend-item' }, el('span', { class: 'chart-legend-swatch', style: 'background:var(--credit)' }), 'Collected'),
     el('span', { class: 'chart-legend-item' }, el('span', { class: 'chart-legend-swatch', style: 'background:var(--debit)' }), 'Handed over')
   ));
-  chartCard.appendChild(periodCards);
-  chartCard.appendChild(periodCaption);
   root.appendChild(chartCard);
+
+  const purposeTotals = new Map();
+  periodTxns.forEach(t => {
+    const purpose = String(t.purpose || '').trim() || '(No purpose entered)';
+    const item = purposeTotals.get(purpose) || { amount: 0, count: 0 };
+    item.amount += Number(t.amount) || 0; item.count++; purposeTotals.set(purpose, item);
+  });
+  const topPurposes = [...purposeTotals.entries()].sort((a,b) => b[1].amount - a[1].amount).slice(0,5);
+  const purposeCard = el('div', { class: 'form-card' }, el('h3', {}, 'Purpose insights · selected period'));
+  const insightGrid = el('div', { class: 'insight-grid' });
+  if (!topPurposes.length) insightGrid.appendChild(el('div', { class: 'muted-note' }, 'No transactions in this period.'));
+  topPurposes.forEach(([purpose, data]) => insightGrid.appendChild(el('div', { class: 'insight-card' },
+    el('div', { class: 'insight-label' }, purpose),
+    el('b', {}, fmtMoney(data.amount)),
+    el('div', { class: 'muted-note' }, data.count + (data.count === 1 ? ' entry' : ' entries'))
+  )));
+  purposeCard.appendChild(insightGrid);
+  root.appendChild(purposeCard);
+
+  const today = istTodayKey();
+  const todayTxns = filterTransactionsByBounds(allTxns, { start: today, end: today });
+  const todaySummary = sumTransactionsBetween(todayTxns, today, today);
+  const todayPending = allTransfers.filter(t => t.status === 'pending' && dateKeyIST(t.date) === today);
+  const eod = el('div', { class: 'form-card' }, el('h3', {}, 'End-of-day · ' + fmtDate(today) + ' IST'));
+  const eodGrid = el('div', { class: 'eod-grid' });
+  [
+    ['Cash collected today', fmtMoney(todaySummary.collected)],
+    ['Cash handed over today', fmtMoney(todaySummary.handedOver)],
+    ['Net movement today', fmtMoney(todaySummary.net)],
+    ['Entries today', String(todayTxns.length)],
+    ['Pending transfers dated today', String(todayPending.length)]
+  ].forEach(([label, value]) => eodGrid.appendChild(el('div', { class: 'eod-card' }, el('div', { class: 'insight-label' }, label), el('b', {}, value))));
+  eod.appendChild(eodGrid);
+  eod.appendChild(el('div', { class: 'muted-note' }, 'Summary only; this does not close the day or change any records.'));
+  root.appendChild(eod);
+
+  if (current.id === 'vishal') {
+    const pending = allTransfers.filter(t => t.status === 'pending').sort((a,b) => new Date(a.createdAt) - new Date(b.createdAt));
+    const inbox = el('div', { class: 'form-card' }, el('h3', {}, 'Company approval inbox · ' + pending.length + ' pending'));
+    if (!pending.length) inbox.appendChild(el('div', { class: 'muted-note' }, 'No transfers are waiting for approval.'));
+    pending.slice(0,8).forEach(t => {
+      const ageMs = Math.max(0, Date.now() - new Date(t.createdAt || Date.now()).getTime());
+      const ageHours = Math.floor(ageMs / 3600000);
+      const age = ageHours >= 24 ? Math.floor(ageHours / 24) + 'd ' + (ageHours % 24) + 'h waiting' : ageHours + 'h waiting';
+      inbox.appendChild(el('div', { class: 'transfer-row', style: 'display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid var(--rule);flex-wrap:wrap' },
+        el('div', {}, el('b', {}, (t.fromName || t.fromEmployeeId) + ' → ' + (t.toName || t.toEmployeeId)),
+          el('div', { class: 'transfer-age' }, fmtDate(t.date) + ' · ' + age + (t.purpose ? ' · ' + t.purpose : ''))),
+        el('div', {}, fmtMoney(t.amount), ' · ', statusBadge(t.status))
+      ));
+    });
+    if (pending.length > 8) inbox.appendChild(el('div', { class: 'muted-note' }, 'Showing 8 oldest. Open Approvals for the full list.'));
+    inbox.appendChild(el('button', { class: 'btn btn-small', onclick: () => { view = 'approvals'; render(); } }, 'Open approvals'));
+    root.appendChild(inbox);
+  }
 
   root.appendChild(el('div', { class: 'row-between' }, el('div', { class: 'section-title' }, 'By employee')));
   const grid = el('div', { class: 'overview-grid' });
   EMPLOYEES.forEach((e, idx) => {
     const b = balanceFor(e.id);
+    const employeePeriod = filterTransactionsByBounds(txnsFor(e.id), bounds);
+    const employeeTotals = sumTransactionsBetween(employeePeriod, bounds.start, bounds.end);
     const balanceSpan = el('span', {}, fmtMoney(lastRenderedBalance[e.id] !== undefined ? lastRenderedBalance[e.id] : b.balance));
-    const employeeTxns = txnsFor(e.id);
-    const latestTxn = employeeTxns.reduce((latest, txn) => {
-      if (!latest) return txn;
-      return new Date(txn.createdAt || txn.date) > new Date(latest.createdAt || latest.date) ? txn : latest;
-    }, null);
+    const latestTxn = txnsFor(e.id).reduce((latest, txn) => !latest || new Date(txn.createdAt || txn.date) > new Date(latest.createdAt || latest.date) ? txn : latest, null);
     const pendingInCount = allTransfers.filter(t => t.toEmployeeId === e.id && t.status === 'pending').length;
     const pendingOutCount = allTransfers.filter(t => t.fromEmployeeId === e.id && t.status === 'pending').length;
     const donutHolder = el('div', { style: 'flex:none' });
@@ -1159,21 +1221,14 @@ function renderMaster() {
     const cardStyle = currentViewChanged ? ('animation: cardEnter .4s ease backwards; animation-delay:' + (idx * 55) + 'ms;') : '';
     const card = el('button', { class: 'emp-card', style: cardStyle, onclick: () => { masterFocusId = e.id; view='ledger-detail'; render(); } },
       el('div', { class: 'emp-card-top', style: 'justify-content:space-between' },
-        el('div', { style: 'display:flex;align-items:center;gap:10px' }, avatarChip(e.id, e.name, 36), el('div', { class: 'emp-card-name' }, e.name + (e.isMaster ? ' \u00b7 Master' : ''))),
+        el('div', { style: 'display:flex;align-items:center;gap:10px' }, avatarChip(e.id, e.name, 36), el('div', { class: 'emp-card-name' }, e.name + (e.isMaster ? ' · Master' : ''))),
         donutHolder
       ),
       el('div', { class: 'emp-card-balance' }, balanceSpan),
-      el('div', { class: 'emp-card-meta' }, b.count + ' entries \u00b7 in ' + fmtMoney(b.inTotal) + ' / out ' + fmtMoney(b.outTotal)),
-      el('div', { class: 'emp-card-submeta' },
-        el('span', { class: 'activity-dot' }),
-        latestTxn ? 'Latest: ' + fmtDate(latestTxn.date) + ' \u00b7 ' + (fmtTime(latestTxn.createdAt) || 'time unavailable') : 'No ledger entries yet'
-      ),
-      el('div', { class: 'emp-card-submeta' },
-        el('span', { class: 'pending-dot' }),
-        pendingInCount || pendingOutCount
-          ? (pendingInCount ? pendingInCount + ' to approve' : '') + (pendingInCount && pendingOutCount ? ' \u00b7 ' : '') + (pendingOutCount ? pendingOutCount + ' awaiting approval' : '')
-          : 'No pending transfers'
-      )
+      el('div', { class: 'emp-card-meta' }, 'Current balance · ' + b.count + ' lifetime entries'),
+      el('div', { class: 'emp-card-submeta' }, 'Selected period: ' + employeePeriod.length + ' entries · in ' + fmtMoney(employeeTotals.collected) + ' / out ' + fmtMoney(employeeTotals.handedOver)),
+      el('div', { class: 'emp-card-submeta' }, el('span', { class: 'activity-dot' }), latestTxn ? 'Latest: ' + fmtDate(latestTxn.date) + ' · ' + (fmtTime(latestTxn.createdAt) || 'time unavailable') : 'No ledger entries yet'),
+      el('div', { class: 'emp-card-submeta' }, el('span', { class: 'pending-dot' }), pendingInCount || pendingOutCount ? (pendingInCount ? pendingInCount + ' to approve' : '') + (pendingInCount && pendingOutCount ? ' · ' : '') + (pendingOutCount ? pendingOutCount + ' awaiting approval' : '') : 'No pending transfers')
     );
     grid.appendChild(card);
     setTimeout(() => animateBalanceInto(balanceSpan, e.id, b.balance), 0);

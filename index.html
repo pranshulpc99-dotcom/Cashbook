@@ -400,12 +400,24 @@ function avatarChip(id, name, size) {
 /* ---------------- API ---------------- */
 async function api(action, payload) {
   if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.indexOf('PASTE_YOUR') === 0) throw new Error('CONFIG');
-  const res = await fetch(APPS_SCRIPT_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify(Object.assign({ action, token }, payload || {}))
-  });
-  return res.json();
+  let res;
+  try {
+    res = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(Object.assign({ action, token }, payload || {}))
+    });
+  } catch (err) {
+    throw new Error('Could not connect to the Apps Script web app. Check the deployment URL, web-app access, and connection.');
+  }
+  const text = await res.text();
+  let result;
+  try { result = JSON.parse(text); }
+  catch (err) {
+    throw new Error('Apps Script returned a non-JSON page (HTTP ' + res.status + '). The deployment may require sign-in or the web-app URL may be outdated.');
+  }
+  if (!res.ok) throw new Error(result.error || ('Apps Script request failed (HTTP ' + res.status + ').'));
+  return result;
 }
 
 function checkForNewIncoming() {
@@ -1069,14 +1081,15 @@ function buildLedgerSection(list) {
     const form = el('div', { class: 'purpose-edit-form' }, input);
     form.appendChild(el('button', { type: 'button', class: 'btn btn-small', onclick: () => renderRows() }, 'Cancel'));
     form.appendChild(el('button', { type: 'button', class: 'btn btn-small btn-primary', onclick: async e => {
+      const saveButton = e.currentTarget;
       const purpose = input.value.trim();
       if (!purpose) { error.textContent = 'Purpose cannot be empty.'; return; }
-      e.currentTarget.disabled = true;
+      saveButton.disabled = true;
       try {
         const result = await api('updatePurpose', { transactionId: t.id, purpose });
-        if (!result || !result.ok) { error.textContent = (result && result.error) || 'Could not update purpose.'; e.currentTarget.disabled = false; return; }
+        if (!result || !result.ok) { error.textContent = (result && result.error) || 'Could not update purpose.'; saveButton.disabled = false; return; }
         t.purpose = purpose; showToast('Purpose updated'); renderRows();
-      } catch (ex) { error.textContent = 'Could not reach the server.'; e.currentTarget.disabled = false; }
+      } catch (ex) { error.textContent = ex.message || 'Could not reach the server.'; saveButton.disabled = false; }
     } }, 'Save'));
     cell.appendChild(form); cell.appendChild(error); input.focus(); input.select();
   }

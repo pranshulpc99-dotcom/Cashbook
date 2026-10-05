@@ -486,7 +486,8 @@ async function api(action, payload) {
       body: JSON.stringify(Object.assign({ action, token }, payload || {}))
     });
   } catch (err) {
-    throw new Error('Could not connect to the Apps Script web app. Check the deployment URL, web-app access, and connection.');
+    const detail = err && err.message ? err.message : String(err || 'Unknown network error');
+    throw new Error('Could not reach the Apps Script web app (' + detail + '). Check the deployment URL, web-app access, and connection.');
   }
   const text = await res.text();
   let result;
@@ -983,7 +984,7 @@ function renderLogin() {
         if (r.needsSetup) { pendingEmployee = emp; loginStage = 'setpin-confirm'; loginError = ''; render(); return; }
         if (!r.ok) { loginError = r.error || 'Sign-in failed.'; render(); return; }
         completeLogin(emp, r.token, '');
-      } catch (ex) { loginError = ex.message === 'CONFIG' ? 'App not configured yet.' : 'Couldn\u2019t reach the server \u2014 check your connection.'; render(); }
+      } catch (ex) { loginError = ex.message === 'CONFIG' ? 'App not configured yet.' : (ex.message || 'Couldn\u2019t reach the server \u2014 check your connection.'); render(); }
     };
     const signInBtn = el('button', { type: 'submit', class: 'btn btn-primary', style: 'width:100%', onclick: (e) => doSignIn(e.currentTarget) }, 'Sign in');
     idInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); doSignIn(signInBtn); } });
